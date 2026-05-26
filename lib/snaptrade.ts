@@ -101,6 +101,14 @@ export async function deleteUser(userId: string, userSecret: string): Promise<vo
   await st('DELETE', '/snapTrade/deleteUser', { userId, userSecret })
 }
 
+/**
+ * Returns the list of userId strings registered under this clientId.
+ * On Personal plan this will have exactly 0 or 1 entries.
+ */
+export async function listUsers(): Promise<string[]> {
+  return st('GET', '/snapTrade/listUsers') as Promise<string[]>
+}
+
 // ── OAuth portal ──────────────────────────────────────────────────────────────
 
 export interface LoginResponse {
