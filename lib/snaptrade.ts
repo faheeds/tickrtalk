@@ -8,18 +8,13 @@ export function snapTradeConfigured(): boolean {
   return !!(process.env.SNAPTRADE_CLIENT_ID && process.env.SNAPTRADE_CONSUMER_KEY)
 }
 
-// ── Auth headers ─────────────────────────────────────────────────────────────
-function authHeaders(): Record<string, string> {
+// ── Auth query params (SnapTrade requires these in the query string) ──────────
+function authParams(): Record<string, string> {
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const signature = createHmac('sha256', CONSUMER_KEY)
     .update(timestamp)
     .digest('hex')
-  return {
-    clientId:         CLIENT_ID,
-    timestamp,
-    signature,
-    'Content-Type':   'application/json',
-  }
+  return { clientId: CLIENT_ID, timestamp, signature }
 }
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -30,11 +25,17 @@ async function st(
   body?: unknown,
 ): Promise<unknown> {
   const url = new URL(`${BASE}${path}`)
+
+  // Auth params always go in the query string
+  const auth = authParams()
+  Object.entries(auth).forEach(([k, v]) => url.searchParams.set(k, v))
+
+  // Extra query params (userId, userSecret, filters, etc.)
   if (query) Object.entries(query).forEach(([k, v]) => url.searchParams.set(k, v))
 
   const res = await fetch(url.toString(), {
     method,
-    headers: authHeaders(),
+    headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   })
 
