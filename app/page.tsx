@@ -1,7 +1,6 @@
-use Client
+'use client'
 import Link from 'next/link'
 import { SignedIn, SignedOut } from '@clerk/nextjs'
-import { Client } from '@clerk/nextjs/server'
 
 export default function LandingPage() {
   return (
