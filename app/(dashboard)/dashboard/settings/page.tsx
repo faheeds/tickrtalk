@@ -529,7 +529,7 @@ export default function SettingsPage() {
                     <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink-1)', letterSpacing: '-0.02em' }}>
                       ${p.price}<span style={{ fontSize: 13, color: 'var(--ink-3)', fontWeight: 400 }}>/mo</span>
                     </div>
-                    <ul style={{ marginTop: 12, space: 4 }}>
+                    <ul style={{ marginTop: 12 }}>
                       {p.features.map(f => (
                         <li key={f} className="flex items-center gap-2" style={{ fontSize: 12, color: 'var(--ink-2)', marginBottom: 6 }}>
                           <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--up)' }}>
