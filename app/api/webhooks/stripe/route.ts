@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
   switch (event.type) {
     case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.CheckoutSession
+      const session = event.data.object as Stripe.Checkout.Session
       const sub = await stripe.subscriptions.retrieve(session.subscription as string)
       const clerkId = session.metadata?.clerkId
       if (!clerkId) break
