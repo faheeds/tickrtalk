@@ -14,8 +14,15 @@ export async function POST(req: Request) {
 
   // Verify credentials actually work before saving
   const client = createAlpacaClient({ apiKey, apiSecret, paper })
-  const account = await client.getAccount().catch(() => null)
-  if (!account) return NextResponse.json({ error: 'Invalid Alpaca credentials — connection test failed' }, { status: 422 })
+  let account = null
+  let testError = 'Unknown error'
+  try {
+    account = await client.getAccount()
+  } catch (e) {
+    testError = (e as Error).message || String(e)
+    console.error('Alpaca connection test failed:', testError)
+  }
+  if (!account) return NextResponse.json({ error: `Invalid Alpaca credentials — ${testError}` }, { status: 422 })
 
   const row = {
     user_id:              userId,

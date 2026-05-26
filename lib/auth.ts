@@ -1,9 +1,29 @@
-import { auth } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { supabaseAdmin } from './supabase'
 
 export async function requireUser() {
   const { userId } = await auth()
   if (!userId) throw new Error('Unauthorized')
+
+  // Ensure user exists in Supabase (idempotent — safe to call every request)
+  const { data: existing } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('id', userId)
+    .single()
+
+  if (!existing) {
+    const clerkUser = await currentUser()
+    const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? ''
+    await supabaseAdmin.from('users').upsert({
+      id: userId,
+      email,
+      subscription_status: 'trial',
+      subscription_tier: 'basic',
+      trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    }, { onConflict: 'id', ignoreDuplicates: true })
+  }
+
   return userId
 }
 
