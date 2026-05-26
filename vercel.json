@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/scan",
+      "schedule": "*/5 14-21 * * 1-5"
+    },
+    {
+      "path": "/api/cron/mark-to-market",
+      "schedule": "0 21 * * 1-5"
+    }
+  ],
+  "functions": {
+    "app/api/cron/**": {
+      "maxDuration": 60
+    },
+    "app/api/algo/**": {
+      "maxDuration": 30
+    }
+  }
+}

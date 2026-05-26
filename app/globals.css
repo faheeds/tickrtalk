@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #10b981;
+  --brand-dark: #059669;
+}
+
+body {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.card {
+  @apply bg-slate-800 border border-slate-700 rounded-xl p-5;
+}
+
+.btn-primary {
+  @apply bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-lg transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold px-4 py-2 rounded-lg transition-colors;
+}
+
+.badge-halal   { @apply bg-emerald-500/20 text-emerald-400 text-xs px-2 py-0.5 rounded-full font-medium; }
+.badge-haram   { @apply bg-red-500/20    text-red-400    text-xs px-2 py-0.5 rounded-full font-medium; }
+.badge-unknown { @apply bg-slate-600/40  text-slate-400  text-xs px-2 py-0.5 rounded-full font-medium; }
