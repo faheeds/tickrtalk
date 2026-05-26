@@ -1,9 +1,10 @@
 'use client'
+import Link from 'next/link'
 import { useAuth } from '@clerk/nextjs'
-import { SignedIn, SignedOut } from '@clerk/nextjs'
 
 export default function LandingPage() {
   const { isSignedIn } = useAuth()
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950">
       {/* Nav */}
@@ -21,8 +22,6 @@ export default function LandingPage() {
               <Link href="/sign-up" className="btn-primary">Start Free Trial</Link>
             </>
           )}
-            <Link href="/dashboard" className="btn-primary">Go to Dashboard</Link>
-          </SignedIn>
         </div>
       </nav>
 
@@ -39,9 +38,7 @@ export default function LandingPage() {
           AI-powered trend following with SuperTrend, automatic halal screening across 1,100+ certified symbols, and professional risk management — all on your own Alpaca account.
         </p>
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Link href="/sign-up" className="btn-primary text-lg px-8 py-3">
-            Start 30-Day Free Trial
-          </Link>
+          <Link href="/sign-up" className="btn-primary text-lg px-8 py-3">Start 30-Day Free Trial</Link>
           <a href="#features" className="btn-secondary text-lg px-8 py-3">See Features</a>
         </div>
         <p className="text-slate-500 text-sm mt-4">No credit card required · Cancel anytime</p>
@@ -73,7 +70,6 @@ export default function LandingPage() {
         <h2 className="text-3xl font-bold text-white text-center mb-4">Simple, Transparent Pricing</h2>
         <p className="text-slate-400 text-center mb-12">30-day free trial on all plans. No credit card required to start.</p>
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Basic */}
           <div className="card border-slate-600">
             <div className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-2">Basic</div>
             <div className="text-4xl font-bold text-white mb-1">$19<span className="text-lg text-slate-400 font-normal">/mo</span></div>
@@ -85,15 +81,13 @@ export default function LandingPage() {
             </ul>
             <Link href="/sign-up" className="btn-secondary w-full text-center block">Start Free Trial</Link>
           </div>
-
-          {/* Pro */}
           <div className="card border-emerald-500/50 relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full">MOST POPULAR</div>
             <div className="text-emerald-400 text-sm font-medium uppercase tracking-wide mb-2">Pro</div>
             <div className="text-4xl font-bold text-white mb-1">$49<span className="text-lg text-slate-400 font-normal">/mo</span></div>
             <p className="text-slate-400 text-sm mb-6">Full algo engine + auto-trading</p>
             <ul className="space-y-3 text-sm text-slate-300 mb-8">
-              {['Everything in Basic', 'AI algo engine (SuperTrend + ATR)', 'Auto-trading with risk management', 'Market regime filter', 'Connect all brokers (Alpaca, Schwab, IBKR)', 'Cron-powered scans every 5 minutes', 'Options open interest filter'].map(f => (
+              {['Everything in Basic', 'AI algo engine (SuperTrend + ATR)', 'Auto-trading with risk management', 'Market regime filter', 'All brokers (Alpaca, Schwab, IBKR)', 'Cron-powered scans', 'Options open interest filter'].map(f => (
                 <li key={f} className="flex items-center gap-2"><span className="text-emerald-400">✓</span>{f}</li>
               ))}
             </ul>
