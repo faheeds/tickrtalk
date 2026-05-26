@@ -1,8 +1,9 @@
 'use client'
-import Link from 'next/link'
+import { useAuth } from '@clerk/nextjs'
 import { SignedIn, SignedOut } from '@clerk/nextjs'
 
 export default function LandingPage() {
+  const { isSignedIn } = useAuth()
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950">
       {/* Nav */}
@@ -12,11 +13,14 @@ export default function LandingPage() {
           <span className="text-xl font-bold text-white">Tickr<span className="text-emerald-400">Talk</span></span>
         </div>
         <div className="flex items-center gap-3">
-          <SignedOut>
-            <Link href="/sign-in" className="text-slate-300 hover:text-white px-4 py-2 transition-colors">Sign In</Link>
-            <Link href="/sign-up" className="btn-primary">Start Free Trial</Link>
-          </SignedOut>
-          <SignedIn>
+          {isSignedIn ? (
+            <Link href="/dashboard" className="btn-primary">Go to Dashboard</Link>
+          ) : (
+            <>
+              <Link href="/sign-in" className="text-slate-300 hover:text-white px-4 py-2 transition-colors">Sign In</Link>
+              <Link href="/sign-up" className="btn-primary">Start Free Trial</Link>
+            </>
+          )}
             <Link href="/dashboard" className="btn-primary">Go to Dashboard</Link>
           </SignedIn>
         </div>

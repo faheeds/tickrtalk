@@ -34,7 +34,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           ))}
         </nav>
         <div className="p-4 border-t border-slate-700 flex items-center gap-3">
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
           <span className="text-slate-400 text-xs">Account</span>
         </div>
       </aside>
