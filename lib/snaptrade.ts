@@ -9,11 +9,14 @@ export function snapTradeConfigured(): boolean {
 }
 
 // ── Auth query params (SnapTrade requires these in the query string) ──────────
+// Consumer key must be base64-decoded before use as HMAC secret.
+// Signature must be base64-encoded (not hex).
 function authParams(): Record<string, string> {
   const timestamp = Math.floor(Date.now() / 1000).toString()
-  const signature = createHmac('sha256', CONSUMER_KEY)
+  const keyBytes  = Buffer.from(CONSUMER_KEY, 'base64')
+  const signature = createHmac('sha256', keyBytes)
     .update(timestamp)
-    .digest('hex')
+    .digest('base64')
   return { clientId: CLIENT_ID, timestamp, signature }
 }
 
