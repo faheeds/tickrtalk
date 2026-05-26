@@ -135,3 +135,9 @@ CREATE TRIGGER portfolios_updated_at          BEFORE UPDATE ON portfolios       
 CREATE TRIGGER watchlists_updated_at          BEFORE UPDATE ON watchlists           EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER algo_params_updated_at         BEFORE UPDATE ON algo_params          EXECUTE FUNCTION update_updated_at();
 
+
+-- ── SNAPTRADE ──────────────────────────────────────────────────────────────────
+-- Run this migration after the initial schema if upgrading from a prior version:
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS snaptrade_user_secret TEXT;
+-- The column stores an AES-256-GCM encrypted SnapTrade userSecret per user.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS snaptrade_user_secret TEXT;

@@ -15,6 +15,7 @@ export interface JournalTrade {
   pnl: number | null
   pnlPct: number | null
   halal: 'HALAL' | 'HARAM' | 'DOUBTFUL' | 'UNKNOWN'
+  broker?: string       // 'alpaca' | broker display name from SnapTrade
 }
 
 export async function GET() {
