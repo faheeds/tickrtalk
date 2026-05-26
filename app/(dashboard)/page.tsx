@@ -54,9 +54,9 @@ export default function DashboardPage() {
         {[
           { label: 'Portfolio Value', value: `$${account?.portfolioValue?.toLocaleString() ?? '—'}` },
           { label: 'Cash',            value: `$${account?.cash?.toLocaleString() ?? '—'}` },
-          { label: 'Day P&L',         value: `${account?.dayPnl >= 0 ? '+' : ''}$${account?.dayPnl?.toFixed(2) ?? '—'}`,
+          { label: 'Day P&L', value: `${(account?.dayPnl ?? 0) >= 0 ? '+' : ''}${account?.dayPnl?.toFixed(2) ?? '—'}`,
             sub: `${account?.dayPnlPct?.toFixed(2) ?? '0'}%`,
-            color: account?.dayPnl >= 0 ? 'text-emerald-400' : 'text-red-400' },
+            color: (account?.dayPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400' },
           { label: 'Open Positions',  value: openCount, sub: `${positiveCnt} winning` },
         ].map(s => (
           <div key={s.label} className="card">
