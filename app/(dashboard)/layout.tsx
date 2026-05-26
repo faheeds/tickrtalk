@@ -4,9 +4,10 @@ import Link           from 'next/link'
 import { redirect }   from 'next/navigation'
 
 const NAV = [
-  { href: '/dashboard',           label: '🏠 Overview'  },
-  { href: '/dashboard/portfolio', label: '💼 Portfolio' },
-  { href: '/dashboard/watchlist', label: '👁 Watchlist' },
+  { href: '/dashboard',           label: '🏠 Overview'   },
+  { href: '/dashboard/portfolio', label: '💼 Portfolio'  },
+  { href: '/dashboard/watchlist', label: '👁 Watchlist'  },
+  { href: '/dashboard/journal',   label: '📓 Journal'    },
   { href: '/dashboard/algo',      label: '🤖 Algo Engine' },
   { href: '/dashboard/settings',  label: '⚙️ Settings'   },
 ]

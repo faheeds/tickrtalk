@@ -432,6 +432,48 @@ export function createAlpacaClient(creds: AlpacaCreds) {
     }
   }
 
+  // ─── ACCOUNT ACTIVITIES ───────────────────────────────────────────────────
+
+  interface AlpacaActivity {
+    id: string
+    activity_type: string
+    transaction_time: string
+    symbol: string
+    qty: string
+    price: string
+    side: 'buy' | 'sell'
+    order_id: string
+    cum_qty: string
+    leaves_qty: string
+    type: string
+  }
+
+  async function getActivities(activityType = 'FILL', afterDate?: string): Promise<AlpacaActivity[]> {
+    const all: AlpacaActivity[] = []
+    const params: Record<string, string | number | boolean> = {
+      activity_type: activityType,
+      direction: 'asc',
+      page_size: 100,
+    }
+    if (afterDate) params.after = afterDate
+
+    try {
+      // Fetch up to 1000 activities (10 pages)
+      for (let page = 0; page < 10; page++) {
+        const data = await tradeGet(`/v2/account/activities/${activityType}`, params) as AlpacaActivity[]
+        if (!Array.isArray(data) || data.length === 0) break
+        all.push(...data)
+        if (data.length < 100) break
+        // Use last id as page token (Alpaca uses id-based pagination for activities)
+        const lastId = data[data.length - 1].id
+        params.page_token = lastId
+      }
+    } catch (e) {
+      console.error('getActivities error:', (e as Error).message)
+    }
+    return all
+  }
+
   return {
     getAccount,
     getPositions,
@@ -448,6 +490,7 @@ export function createAlpacaClient(creds: AlpacaCreds) {
     isLiquid,
     getClock,
     getCalendar,
+    getActivities,
   }
 }
 
