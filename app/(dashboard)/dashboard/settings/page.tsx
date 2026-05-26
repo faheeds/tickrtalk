@@ -52,6 +52,7 @@ export default function SettingsPage() {
     })
     const d = await r.json()
     if (d.url) window.location.href = d.url
+    else setMsg(`❌ Billing error: ${d.error ?? JSON.stringify(d)}`)
   }
 
   return (

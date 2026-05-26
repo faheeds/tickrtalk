@@ -11,9 +11,11 @@ export async function POST(req: Request) {
   if (!PLANS[plan]) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
 
   const user = await getUserRecord(userId)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://tickrtalk-ebon.vercel.app'
 
-  const session = await stripe.checkout.sessions.create({
+  let session
+  try {
+    session = await stripe.checkout.sessions.create({
     customer: user?.stripe_customer_id || undefined,
     customer_email: user?.stripe_customer_id ? undefined : user?.email,
     mode: 'subscription',
@@ -24,9 +26,13 @@ export async function POST(req: Request) {
       metadata: { clerkId: userId },
     },
     metadata: { clerkId: userId },
-    success_url: `${appUrl}/dashboard?upgraded=1`,
-    cancel_url:  `${appUrl}/dashboard/settings?tab=billing`,
-  })
+      success_url: `${appUrl}/dashboard?upgraded=1`,
+      cancel_url:  `${appUrl}/dashboard/settings?tab=billing`,
+    })
+  } catch (e) {
+    console.error('Stripe checkout error:', e)
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 
   return NextResponse.json({ url: session.url })
 }
