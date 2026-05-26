@@ -77,6 +77,7 @@ export default function SettingsPage() {
   const [stLoading, setStLoading]       = useState(true)
   const [stConnecting, setStConnecting] = useState(false)
   const [stRemoving, setStRemoving]     = useState<string | null>(null)
+  const [stConfigured, setStConfigured] = useState(true)
 
   // Alpaca state
   const [alpacaConns, setAlpacaConns]   = useState<AlpacaConnection[]>([])
@@ -102,6 +103,14 @@ export default function SettingsPage() {
     try {
       // Check registration
       const reg = await fetch('/api/snaptrade/register').then(r => r.json())
+
+      if (reg.error?.includes('not configured')) {
+        setStConfigured(false)
+        setStRegistered(false)
+        setStLoading(false)
+        return
+      }
+
       setStRegistered(reg.registered)
 
       if (reg.registered) {
@@ -331,33 +340,48 @@ export default function SettingsPage() {
               </div>
             ) : null}
 
-            {/* Connect button */}
+            {/* Connect button or setup notice */}
             <div style={{ padding: '16px 24px' }}>
-              <button
-                onClick={handleConnectClick}
-                disabled={stConnecting}
-                className="btn-primary w-full"
-                style={{ justifyContent: 'center', gap: 8 }}
-              >
-                {stConnecting ? (
-                  <>
-                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/>
-                    </svg>
-                    Connecting…
-                  </>
-                ) : (
-                  <>
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
-                    </svg>
-                    {stAuths.length > 0 ? 'Connect Another Broker' : 'Connect a Broker'}
-                  </>
-                )}
-              </button>
-              <p style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'center', marginTop: 10 }}>
-                Secured by SnapTrade · OAuth — no credentials stored on our servers
-              </p>
+              {!stConfigured ? (
+                <div style={{
+                  padding: '12px 16px', borderRadius: 10, fontSize: 12, lineHeight: 1.6,
+                  background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)',
+                  color: '#FCD34D',
+                }}>
+                  <strong>Setup required:</strong> Add <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: 4 }}>SNAPTRADE_CLIENT_ID</code> and{' '}
+                  <code style={{ background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: 4 }}>SNAPTRADE_CONSUMER_KEY</code> to your Vercel environment variables.
+                  Get them free at{' '}
+                  <a href="https://app.snaptrade.com" target="_blank" rel="noreferrer" style={{ color: '#FCD34D', textDecoration: 'underline' }}>app.snaptrade.com</a>.
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={handleConnectClick}
+                    disabled={stConnecting}
+                    className="btn-primary w-full"
+                    style={{ justifyContent: 'center', gap: 8 }}
+                  >
+                    {stConnecting ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeLinecap="round"/>
+                        </svg>
+                        Connecting…
+                      </>
+                    ) : (
+                      <>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
+                        </svg>
+                        {stAuths.length > 0 ? 'Connect Another Broker' : 'Connect a Broker'}
+                      </>
+                    )}
+                  </button>
+                  <p style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'center', marginTop: 10 }}>
+                    Secured by SnapTrade · OAuth — no credentials stored on our servers
+                  </p>
+                </>
+              )}
             </div>
           </div>
 

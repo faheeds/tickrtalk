@@ -1,8 +1,12 @@
 import { createHmac } from 'crypto'
 
 const BASE         = 'https://api.snaptrade.com/api/v1'
-const CLIENT_ID    = process.env.SNAPTRADE_CLIENT_ID!
-const CONSUMER_KEY = process.env.SNAPTRADE_CONSUMER_KEY!
+const CLIENT_ID    = process.env.SNAPTRADE_CLIENT_ID    ?? ''
+const CONSUMER_KEY = process.env.SNAPTRADE_CONSUMER_KEY ?? ''
+
+export function snapTradeConfigured(): boolean {
+  return !!(process.env.SNAPTRADE_CLIENT_ID && process.env.SNAPTRADE_CONSUMER_KEY)
+}
 
 // ── Auth headers ─────────────────────────────────────────────────────────────
 function authHeaders(): Record<string, string> {

@@ -6,12 +6,19 @@
  * Returns { ok, registered, alreadyRegistered }.
  */
 import { requireUser } from '@/lib/auth'
-import { encrypt, decrypt } from '@/lib/crypto'
+import { encrypt } from '@/lib/crypto'
 import { supabaseAdmin } from '@/lib/supabase'
-import { registerUser } from '@/lib/snaptrade'
+import { registerUser, snapTradeConfigured } from '@/lib/snaptrade'
 import { NextResponse } from 'next/server'
 
 export async function POST() {
+  if (!snapTradeConfigured()) {
+    return NextResponse.json(
+      { error: 'SnapTrade is not configured. Add SNAPTRADE_CLIENT_ID and SNAPTRADE_CONSUMER_KEY to your environment variables.' },
+      { status: 503 },
+    )
+  }
+
   const userId = await requireUser().catch(() => null)
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
