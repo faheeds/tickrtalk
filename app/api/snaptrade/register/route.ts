@@ -49,31 +49,22 @@ export async function POST() {
     console.error('SnapTrade register error:', msg)
 
     // Personal plan: "Personal keys can only register one user" (code 1012)
-    // Re-register the already-registered userId — SnapTrade is idempotent for
-    // the same userId, so this returns the same userSecret without hitting the limit.
+    // This means there is an orphaned SnapTrade user from a previous session.
+    // The user must delete it via the SnapTrade dashboard before registering again.
     if (msg.includes('1012') || msg.includes('Personal keys')) {
+      // Log the existing user(s) to help diagnose
       try {
         const users = await listUsers()
-        const existingUserId = users[0]
-
-        if (existingUserId) {
-          console.log(`Personal plan: reusing existing SnapTrade user "${existingUserId}"`)
-          const result = await registerUser(existingUserId)
-          const encrypted = encrypt(result.userSecret)
-
-          await supabaseAdmin
-            .from('users')
-            .update({ snaptrade_user_secret: encrypted })
-            .eq('id', userId)
-
-          return NextResponse.json({ ok: true, registered: true })
-        }
-      } catch (fallbackErr) {
-        console.error('SnapTrade listUsers fallback failed:', fallbackErr)
+        console.log('SnapTrade registered users (Personal plan):', users)
+      } catch (e) {
+        console.log('SnapTrade listUsers also failed:', e)
       }
 
       return NextResponse.json(
-        { error: 'SnapTrade Personal plan limit: could not resolve existing user. Visit app.snaptrade.com to manage registered users.' },
+        {
+          error: 'SNAPTRADE_1012',
+          detail: 'A SnapTrade user is already registered under your API keys. Delete it at app.snaptrade.com → Users, then try again.',
+        },
         { status: 400 },
       )
     }

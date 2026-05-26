@@ -131,6 +131,8 @@ export default function SettingsPage() {
     if (d.ok) {
       setStRegistered(true)
       await connectBroker() // immediately open connection portal
+    } else if (d.error === 'SNAPTRADE_1012') {
+      flash('SNAPTRADE_1012', 'err')
     } else {
       flash(`❌ ${d.error ?? 'Failed to register'}`, 'err')
     }
@@ -254,7 +256,33 @@ export default function SettingsPage() {
       <TabBar tab={tab} setTab={setTab} />
 
       {/* Flash message */}
-      {msg && (
+      {msg === 'SNAPTRADE_1012' ? (
+        <div className="rounded-xl px-4 py-4 text-sm" style={{
+          background: 'rgba(244,63,94,0.08)',
+          border: '1px solid rgba(244,63,94,0.25)',
+          color: 'var(--down)',
+          lineHeight: 1.6,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>❌ SnapTrade Personal plan: user slot already taken</div>
+          <div style={{ color: 'rgba(255,255,255,0.65)', marginBottom: 10 }}>
+            A SnapTrade user is registered under your API keys from a previous session.
+            Delete it to free the slot, then try again.
+          </div>
+          <a
+            href="https://app.snaptrade.com/dashboard/users"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.4)',
+              color: '#FCA5A5', textDecoration: 'none',
+            }}
+          >
+            Open SnapTrade Dashboard →
+          </a>
+        </div>
+      ) : msg ? (
         <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm" style={{
           background: msgType === 'ok' ? 'rgba(0,201,167,0.1)' : 'rgba(244,63,94,0.1)',
           border: `1px solid ${msgType === 'ok' ? 'rgba(0,201,167,0.25)' : 'rgba(244,63,94,0.25)'}`,
@@ -262,7 +290,7 @@ export default function SettingsPage() {
         }}>
           {msg}
         </div>
-      )}
+      ) : null}
 
       {/* ── BROKERS TAB ─────────────────────────────────────────────────────── */}
       {tab === 'brokers' && (
