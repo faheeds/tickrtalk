@@ -85,6 +85,8 @@ export default function SettingsPage() {
   const [alpacaSecret, setAlpacaSecret] = useState('')
   const [paper, setPaper]               = useState(true)
   const [savingAlpaca, setSavingAlpaca] = useState(false)
+  const [resetConfirm, setResetConfirm] = useState(false)
+  const [resetting, setResetting]       = useState(false)
 
   // Billing state
   const [userInfo, setUserInfo]         = useState<UserInfo | null>(null)
@@ -203,6 +205,23 @@ export default function SettingsPage() {
       loadAlpaca()
     } else {
       flash(`❌ ${d.error}`, 'err')
+    }
+  }
+
+  async function resetPaperAccount() {
+    setResetting(true)
+    const r = await fetch('/api/brokerage/alpaca/reset', { method: 'POST' })
+    const d = await r.json()
+    setResetting(false)
+    setResetConfirm(false)
+    if (d.ok) {
+      flash('✅ All orders cancelled and positions closed. Visit the Alpaca dashboard to also reset your cash balance to $100,000.')
+    } else if (r.status === 428) {
+      flash('❌ No active Alpaca connection found. Connect an account first.', 'err')
+    } else if (r.status === 403) {
+      flash('❌ Reset is only available for paper trading accounts.', 'err')
+    } else {
+      flash(`❌ Reset failed: ${d.errors?.join(', ') ?? d.error ?? 'Unknown error'}`, 'err')
     }
   }
 
@@ -521,6 +540,80 @@ export default function SettingsPage() {
                 </button>
               </div>
             </div>
+
+            {/* Reset Paper Account — danger zone */}
+            {alpacaConns.some(c => c.paper_mode) && (
+              <div style={{
+                padding: '14px 24px',
+                borderTop: '1px solid rgba(244,63,94,0.12)',
+                background: 'rgba(244,63,94,0.03)',
+              }}>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-2)' }}>Reset Paper Account</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+                      Cancels all open orders and closes all positions. Restores a clean slate.
+                    </div>
+                  </div>
+
+                  {!resetConfirm ? (
+                    <button
+                      onClick={() => setResetConfirm(true)}
+                      style={{
+                        flexShrink: 0, padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.3)',
+                        color: '#FCA5A5', cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Reset Account
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>Are you sure?</span>
+                      <button
+                        onClick={resetPaperAccount}
+                        disabled={resetting}
+                        style={{
+                          padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                          background: 'rgba(244,63,94,0.2)', border: '1px solid rgba(244,63,94,0.45)',
+                          color: '#F87171', cursor: 'pointer',
+                        }}
+                      >
+                        {resetting ? 'Resetting…' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setResetConfirm(false)}
+                        style={{
+                          padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                          background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                          color: 'var(--ink-3)', cursor: 'pointer',
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Note about balance reset */}
+                <div style={{
+                  marginTop: 10, padding: '8px 12px', borderRadius: 8, fontSize: 11, lineHeight: 1.6,
+                  background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.15)',
+                  color: '#FCD34D',
+                }}>
+                  💡 To also reset your cash balance back to $100,000, visit{' '}
+                  <a
+                    href="https://app.alpaca.markets/paper-trading/dashboard"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: '#FCD34D', textDecoration: 'underline' }}
+                  >
+                    app.alpaca.markets
+                  </a>{' '}
+                  → Paper Trading → Settings → Reset Account.
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
