@@ -1,7 +1,10 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto'
 
 const ALGO  = 'aes-256-gcm'
-const KEY   = scryptSync(process.env.SUPABASE_SERVICE_ROLE_KEY!.slice(0, 32), 'tickrtalk-salt', 32)
+// Use a dedicated ENCRYPTION_KEY so the cipher key never changes when Supabase keys rotate.
+// Generate once with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+const RAW_KEY = process.env.ENCRYPTION_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+const KEY   = scryptSync(RAW_KEY.slice(0, 32), 'tickrtalk-salt', 32)
 
 export function encrypt(text: string): string {
   const iv     = randomBytes(12)
