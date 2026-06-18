@@ -1,8 +1,8 @@
-import { requireUser }   from '@/lib/auth'
-import { supabaseAdmin } from '@/lib/supabase'
-import { encrypt }       from '@/lib/crypto'
+import { requireUser }      from '@/lib/auth'
+import { supabaseAdmin }    from '@/lib/supabase'
+import { encrypt }          from '@/lib/crypto'
 import { createAlpacaClient } from '@/lib/alpaca'
-import { NextResponse }  from 'next/server'
+import { NextResponse }     from 'next/server'
 
 // POST — save or update Alpaca credentials
 export async function POST(req: Request) {
@@ -10,7 +10,8 @@ export async function POST(req: Request) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { apiKey, apiSecret, paper = true } = await req.json()
-  if (!apiKey || !apiSecret) return NextResponse.json({ error: 'apiKey and apiSecret required' }, { status: 400 })
+  if (!apiKey || !apiSecret)
+    return NextResponse.json({ error: 'apiKey and apiSecret required' }, { status: 400 })
 
   // Verify credentials actually work before saving
   const client = createAlpacaClient({ apiKey, apiSecret, paper })
@@ -22,7 +23,8 @@ export async function POST(req: Request) {
     testError = (e as Error).message || String(e)
     console.error('Alpaca connection test failed:', testError)
   }
-  if (!account) return NextResponse.json({ error: `Invalid Alpaca credentials — ${testError}` }, { status: 422 })
+  if (!account)
+    return NextResponse.json({ error: `Invalid Alpaca credentials — ${testError}` }, { status: 422 })
 
   const row = {
     user_id:              userId,
@@ -35,8 +37,17 @@ export async function POST(req: Request) {
     label:                paper ? 'Paper' : 'Live',
   }
 
-  await supabaseAdmin.from('brokerage_connections')
+  const { error: dbError } = await supabaseAdmin
+    .from('brokerage_connections')
     .upsert(row, { onConflict: 'user_id,broker,label' })
+
+  if (dbError) {
+    console.error('Failed to save Alpaca connection:', dbError)
+    return NextResponse.json(
+      { error: `Failed to save connection: ${dbError.message}` },
+      { status: 500 },
+    )
+  }
 
   return NextResponse.json({ ok: true, accountStatus: account.status, equity: account.equity, paper })
 }
