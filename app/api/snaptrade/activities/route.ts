@@ -61,7 +61,14 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Get accounts so we can (a) pass explicit IDs to activities and (b) fetch per-account positions
-    const accounts = await listAccounts(userId, userSecret).catch(() => [])
+    let accounts: Awaited<ReturnType<typeof listAccounts>> = []
+    let accountsError: string | null = null
+    try {
+      accounts = await listAccounts(userId, userSecret)
+    } catch (e) {
+      accountsError = (e as Error).message ?? 'Failed to load accounts'
+      console.error('[snaptrade/activities] listAccounts failed:', accountsError)
+    }
     const accountIds = accounts.map(a => a.id)
 
     // 2. Fetch activities + per-account positions in parallel
@@ -194,6 +201,7 @@ export async function GET(req: NextRequest) {
       registered: true,
       brokers: Array.from(brokerSet),
       total: trades.length,
+      ...(accountsError ? { error: `Could not load accounts: ${accountsError}` } : {}),
     })
   } catch (err) {
     console.error('SnapTrade activities error:', err)

@@ -185,7 +185,8 @@ export default function JournalPage() {
       // Surface SnapTrade errors so the user knows to act
       if (snapRes.staleSecret) {
         setSnapWarning('stale')
-      } else if (snapRes.error && !snapRes.registered) {
+      } else if (snapRes.error) {
+        // Show error even when registered=true (e.g. outer catch in activities route)
         setSnapWarning(snapRes.error as string)
       } else {
         setSnapWarning(null)
