@@ -106,4 +106,23 @@ export async function GET() {
         date: fill.transaction_time.slice(0, 10),
         symbol,
         side: 'LONG',
-        qty: +c
+        qty: +closedQty.toFixed(4),
+        entry: avgEntry,
+        exit: +price.toFixed(4),
+        pnl,
+        pnlPct,
+        halal: getVerdict(symbol),
+      })
+    }
+  }
+
+  // Return most recent first
+  trades.reverse()
+
+  return NextResponse.json({
+    trades,
+    broker: 'alpaca',
+    paper: conn.paper_mode,
+    total: trades.length,
+  })
+}

@@ -18,4 +18,25 @@ export async function getUserAlpaca() {
   if (!conn) {
     return {
       error: NextResponse.json({ error: 'No Alpaca connection. Add your API key in Settings.' }, { status: 428 }),
-      alpaca: n
+      alpaca: null, userId: null,
+    }
+  }
+
+  let apiKey: string, apiSecret: string
+  try {
+    apiKey    = decrypt(conn.api_key_encrypted)
+    apiSecret = decrypt(conn.api_secret_encrypted)
+  } catch (e) {
+    console.error('[getUserAlpaca] Failed to decrypt Alpaca credentials:', e)
+    return {
+      error: NextResponse.json(
+        { error: 'Failed to decrypt broker credentials. Please re-enter your API keys in Settings → Brokers.' },
+        { status: 500 },
+      ),
+      alpaca: null, userId: null,
+    }
+  }
+
+  const alpaca = createAlpacaClient({ apiKey, apiSecret, paper: conn.paper_mode })
+  return { alpaca, userId, error: null }
+}

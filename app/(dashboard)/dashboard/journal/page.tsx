@@ -509,4 +509,13 @@ export default function JournalPage() {
                 ‹ Prev
               </button>
               <span style={{ fontSize: 12, color: 'var(--ink-3)', padding: '0 8px' }}>{page} / {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost" style={{ fontS
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}>
+                Next ›
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
