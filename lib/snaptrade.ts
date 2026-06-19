@@ -199,22 +199,17 @@ export interface SnapTradePosition {
   average_purchase_price: number | null
 }
 
-export interface SnapTradeAccountHolding {
-  account: { id: string; name: string; institution_name: string }
-  balances: unknown[]
-  positions: SnapTradePosition[]
-  total_value: { value: number | null; currency: string | null } | null
-}
-
 /**
- * Returns all holdings (open positions) across every connected brokerage account.
- * Endpoint: GET /holdings
+ * Returns open positions for a single account.
+ * Endpoint: GET /accounts/{accountId}/positions
+ * (replaces the deprecated GET /holdings which returns 410)
  */
-export async function getHoldings(
+export async function getAccountPositions(
   userId: string,
   userSecret: string,
-): Promise<SnapTradeAccountHolding[]> {
-  return st('GET', '/holdings', { userId, userSecret }) as Promise<SnapTradeAccountHolding[]>
+  accountId: string,
+): Promise<SnapTradePosition[]> {
+  return st('GET', `/accounts/${accountId}/positions`, { userId, userSecret }) as Promise<SnapTradePosition[]>
 }
 
 // ── Activities ────────────────────────────────────────────────────────────────

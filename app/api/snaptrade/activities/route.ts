@@ -3,12 +3,12 @@
  *
  * Fetches BUY/SELL trade activities from all connected SnapTrade brokerages.
  * Query params: startDate (YYYY-MM-DD), endDate
- * Returns { trades: JournalTrade[], brokers: string[] }
+ * Returns { trades: JournalTrade[], openPositions: [], brokers: string[] }
  */
 import { requireUser } from '@/lib/auth'
 import { decrypt } from '@/lib/crypto'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActivities, getHoldings, type SnapTradeActivity } from '@/lib/snaptrade'
+import { getActivities, getAccountPositions, listAccounts, type SnapTradeActivity } from '@/lib/snaptrade'
 import { getVerdict } from '@/lib/halal'
 import { NextRequest, NextResponse } from 'next/server'
 import type { JournalTrade } from '@/app/api/journal/route'
@@ -17,6 +17,14 @@ function fiveYearsAgo(): string {
   const d = new Date()
   d.setFullYear(d.getFullYear() - 5)
   return d.toISOString().slice(0, 10)
+}
+
+// Normalise broker-specific activity type strings to BUY / SELL
+function normaliseType(raw: string | undefined): 'BUY' | 'SELL' | null {
+  const t = (raw ?? '').toUpperCase().trim()
+  if (['BUY', 'B', 'BOT', 'BUY TO OPEN', 'BTO'].includes(t)) return 'BUY'
+  if (['SELL', 'S', 'SLD', 'SELL TO CLOSE', 'STC', 'SOLD'].includes(t)) return 'SELL'
+  return null
 }
 
 export async function GET(req: NextRequest) {
@@ -30,19 +38,17 @@ export async function GET(req: NextRequest) {
     .single()
 
   if (!user?.snaptrade_user_secret) {
-    return NextResponse.json({ trades: [], registered: false })
+    return NextResponse.json({ trades: [], openPositions: [], registered: false })
   }
 
   let userSecret: string
   try {
     userSecret = decrypt(user.snaptrade_user_secret)
   } catch (e) {
-    console.error('[snaptrade/activities] Failed to decrypt user secret — secret likely encrypted with old key. User must re-register SnapTrade:', e)
-    // Return registered:false (not 500) so the journal page degrades gracefully.
-    // The user needs to go to Settings → Brokers and click "Connect via SnapTrade"
-    // to re-register and get a freshly-encrypted secret.
+    console.error('[snaptrade/activities] Failed to decrypt user secret:', e)
     return NextResponse.json({
       trades: [],
+      openPositions: [],
       registered: false,
       staleSecret: true,
       error: 'SnapTrade credentials need to be refreshed. Please reconnect in Settings → Brokers.',
@@ -54,34 +60,39 @@ export async function GET(req: NextRequest) {
   const endDate   = sp.get('endDate')   ?? new Date().toISOString().slice(0, 10)
 
   try {
-    // Fetch activities AND holdings in parallel — holdings give us open positions
-    // (Fidelity stocks the user currently holds), activities give us trade history.
-    const [activities, holdings] = await Promise.all([
-      getActivities(userId, userSecret, { startDate, endDate }),
-      getHoldings(userId, userSecret).catch(() => [] as Awaited<ReturnType<typeof getHoldings>>),
+    // 1. Get accounts so we can (a) pass explicit IDs to activities and (b) fetch per-account positions
+    const accounts = await listAccounts(userId, userSecret).catch(() => [])
+    const accountIds = accounts.map(a => a.id)
+
+    // 2. Fetch activities + per-account positions in parallel
+    //    Pass explicit accountIds to activities — required for some brokers (e.g. Robinhood)
+    //    when the global endpoint returns empty due to degraded status.
+    //    Use per-account positions because GET /holdings returns 410 (deprecated).
+    const [activities, ...positionResults] = await Promise.all([
+      getActivities(userId, userSecret, {
+        startDate,
+        endDate,
+        accounts: accountIds.length > 0 ? accountIds : undefined,
+      }),
+      ...accounts.map(acc =>
+        getAccountPositions(userId, userSecret, acc.id)
+          .then(positions => ({ account: acc, positions }))
+          .catch(() => ({ account: acc, positions: [] })),
+      ),
     ])
 
-    // Log what actually came back so we can diagnose broker-specific type strings
-    const typeSample = [...new Set(activities.map(a => a.type).filter(Boolean))].slice(0, 20)
-    console.log(`[snaptrade/activities] total=${activities.length} types=${JSON.stringify(typeSample)}`)
+    // Log what came back so Vercel logs show real data
+    const typeSample = [...new Set((activities as SnapTradeActivity[]).map(a => a.type).filter(Boolean))].slice(0, 20)
+    console.log(`[snaptrade/activities] accounts=${accounts.length} activities=${(activities as SnapTradeActivity[]).length} types=${JSON.stringify(typeSample)}`)
 
-    // Sort ascending for FIFO
-    const sorted = [...activities].sort(
+    // 3. Sort ascending for FIFO lot matching
+    const sorted = [...(activities as SnapTradeActivity[])].sort(
       (a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime(),
     )
 
-    // Build FIFO lots per symbol
     const lots: Record<string, { qty: number; price: number }[]> = {}
     const trades: JournalTrade[] = []
     const brokerSet = new Set<string>()
-
-    // Normalise broker-specific activity type strings to BUY / SELL
-    function normaliseType(raw: string | undefined): 'BUY' | 'SELL' | null {
-      const t = (raw ?? '').toUpperCase().trim()
-      if (['BUY', 'B', 'BOT', 'BUY TO OPEN', 'BTO'].includes(t)) return 'BUY'
-      if (['SELL', 'S', 'SLD', 'SELL TO CLOSE', 'STC', 'SOLD'].includes(t)) return 'SELL'
-      return null
-    }
 
     for (const act of sorted) {
       const symbol = act.symbol?.symbol
@@ -136,19 +147,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Newest first
     trades.reverse()
 
-    // Build open positions from SnapTrade holdings
+    // 4. Build open positions from per-account positions
     const openPositions: {
       symbol: string; qty: number; side: string; avgEntryPrice: number
       currentPrice: number; marketValue: number; unrealizedPnl: number
       unrealizedPct: number; halal: string; broker: string
     }[] = []
 
-    for (const h of holdings) {
-      const broker = h.account?.institution_name ?? 'SnapTrade'
-      for (const p of h.positions ?? []) {
+    for (const result of positionResults as { account: { institution_name: string }; positions: { symbol?: { symbol?: string }; units?: number | null; fractional_units?: number | null; price?: number | null; average_purchase_price?: number | null; open_pnl?: number | null }[] }[]) {
+      const broker = result.account?.institution_name ?? 'SnapTrade'
+      for (const p of result.positions ?? []) {
         const symbol = p.symbol?.symbol
         const qty    = (p.units ?? 0) + (p.fractional_units ?? 0)
         if (!symbol || qty <= 0) continue
@@ -161,8 +171,8 @@ export async function GET(req: NextRequest) {
 
         openPositions.push({
           symbol,
-          qty:          +qty.toFixed(4),
-          side:         'long',
+          qty:           +qty.toFixed(4),
+          side:          'long',
           avgEntryPrice: +avgEntry.toFixed(2),
           currentPrice:  +currentPrice.toFixed(2),
           marketValue:   +marketValue.toFixed(2),
@@ -185,10 +195,9 @@ export async function GET(req: NextRequest) {
     })
   } catch (err) {
     console.error('SnapTrade activities error:', err)
-    // Return 200 with registered:true so the journal page shows the "no trades" empty
-    // state instead of crashing. The error message surfaces for debugging.
     return NextResponse.json({
       trades: [],
+      openPositions: [],
       registered: true,
       brokers: [],
       error: (err as Error).message ?? 'Failed to fetch activities',
