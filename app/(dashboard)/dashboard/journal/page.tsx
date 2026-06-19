@@ -156,8 +156,9 @@ export default function JournalPage() {
 
       setAllTrades(merged)
 
-      // No broker at all
-      const hasAlpaca    = alpacaTrades.length > 0 || alpacaRes.broker
+      // No broker at all — alpacaRes.connected covers the case where a connection
+      // exists in the DB but credentials couldn't be decrypted (wrong key).
+      const hasAlpaca    = alpacaTrades.length > 0 || alpacaRes.broker || alpacaRes.connected
       const hasSnap      = snapRes.registered
       setNoBroker(!hasAlpaca && !hasSnap)
 
@@ -508,13 +509,4 @@ export default function JournalPage() {
                 ‹ Prev
               </button>
               <span style={{ fontSize: 12, color: 'var(--ink-3)', padding: '0 8px' }}>{page} / {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px' }}>
-                Next ›
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn-ghost" style={{ fontS

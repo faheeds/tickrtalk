@@ -49,13 +49,4 @@ export async function getActiveBrokerConnection(userId: string, broker = 'alpaca
   // Use order+limit instead of .single() so multiple rows (e.g. old 'Default'
   // label + new 'Paper' label) don't cause .single() to return null.
   const { data } = await supabaseAdmin
-    .from('brokerage_connections')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('broker', broker)
-    .eq('is_active', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return data
-}
+    .from('br

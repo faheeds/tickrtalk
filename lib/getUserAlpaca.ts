@@ -4,19 +4,18 @@ import { decrypt } from './crypto'
 import { NextResponse } from 'next/server'
 
 export async function getUserAlpaca() {
-  const userId = await requireUser()
-  const conn   = await getActiveBrokerConnection(userId, 'alpaca')
-
-  if (!conn) {
+  // requireUser throws if not authenticated — catch so the caller gets a proper JSON response
+  const userId = await requireUser().catch(() => null)
+  if (!userId) {
     return {
-      error: NextResponse.json({ error: 'No Alpaca connection. Add your API key in Settings.' }, { status: 428 }),
+      error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
       alpaca: null, userId: null,
     }
   }
 
-  const apiKey    = decrypt(conn.api_key_encrypted)
-  const apiSecret = decrypt(conn.api_secret_encrypted)
+  const conn = await getActiveBrokerConnection(userId, 'alpaca')
 
-  const alpaca = createAlpacaClient({ apiKey, apiSecret, paper: conn.paper_mode })
-  return { alpaca, userId, error: null }
-}
+  if (!conn) {
+    return {
+      error: NextResponse.json({ error: 'No Alpaca connection. Add your API key in Settings.' }, { status: 428 }),
+      alpaca: n

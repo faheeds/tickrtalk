@@ -68,9 +68,4 @@ export async function GET() {
 
 // DELETE — remove a connection
 export async function DELETE(req: Request) {
-  const userId = await requireUser().catch(() => null)
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { id } = await req.json()
-  await supabaseAdmin.from('brokerage_connections').delete().eq('id', id).eq('user_id', userId)
-  return NextResponse.json({ ok: true })
-}
+  const userId = await requireUser().catch(() => 

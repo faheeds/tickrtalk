@@ -35,8 +35,15 @@ export async function GET() {
   try {
     apiKey = decrypt(conn.api_key_encrypted as string)
     apiSecret = decrypt(conn.api_secret_encrypted as string)
-  } catch {
-    return NextResponse.json({ trades: [], error: 'Failed to decrypt broker credentials.' })
+  } catch (e) {
+    console.error('[journal] Failed to decrypt Alpaca credentials:', e)
+    // connected: true tells the journal page a broker IS linked so it doesn't show
+    // "Connect a Broker". The user needs to re-enter their API keys in Settings.
+    return NextResponse.json({
+      trades: [],
+      connected: true,
+      error: 'Failed to decrypt broker credentials. Please re-enter your API keys in Settings → Brokers.',
+    })
   }
 
   const client = createAlpacaClient({
@@ -99,23 +106,4 @@ export async function GET() {
         date: fill.transaction_time.slice(0, 10),
         symbol,
         side: 'LONG',
-        qty: +closedQty.toFixed(4),
-        entry: avgEntry,
-        exit: +price.toFixed(4),
-        pnl,
-        pnlPct,
-        halal: getVerdict(symbol),
-      })
-    }
-  }
-
-  // Return most recent first
-  trades.reverse()
-
-  return NextResponse.json({
-    trades,
-    broker: 'alpaca',
-    paper: conn.paper_mode,
-    total: trades.length,
-  })
-}
+        qty: +c
