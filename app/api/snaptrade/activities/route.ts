@@ -8,14 +8,14 @@
 import { requireUser } from '@/lib/auth'
 import { decrypt } from '@/lib/crypto'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActivities, listAccounts, type SnapTradeActivity } from '@/lib/snaptrade'
+import { getActivities, type SnapTradeActivity } from '@/lib/snaptrade'
 import { getVerdict } from '@/lib/halal'
 import { NextRequest, NextResponse } from 'next/server'
 import type { JournalTrade } from '@/app/api/journal/route'
 
-function twoYearsAgo(): string {
+function fiveYearsAgo(): string {
   const d = new Date()
-  d.setFullYear(d.getFullYear() - 2)
+  d.setFullYear(d.getFullYear() - 5)
   return d.toISOString().slice(0, 10)
 }
 
@@ -50,16 +50,18 @@ export async function GET(req: NextRequest) {
   }
 
   const sp = req.nextUrl.searchParams
-  const startDate = sp.get('startDate') ?? twoYearsAgo()
+  const startDate = sp.get('startDate') ?? fiveYearsAgo()
   const endDate   = sp.get('endDate')   ?? new Date().toISOString().slice(0, 10)
 
   try {
-    // Fetch BUY + SELL activities (types filter)
-    const activities = await getActivities(userId, userSecret, {
-      startDate,
-      endDate,
-      types: 'BUY,SELL',
-    })
+    // Fetch ALL activities — no server-side type filter so we catch every broker's
+    // trade types (Fidelity may use slightly different labels than 'BUY'/'SELL').
+    // We normalise below with .toUpperCase() and also check common aliases.
+    const activities = await getActivities(userId, userSecret, { startDate, endDate })
+
+    // Log what actually came back so we can diagnose broker-specific type strings
+    const typeSample = [...new Set(activities.map(a => a.type).filter(Boolean))].slice(0, 20)
+    console.log(`[snaptrade/activities] total=${activities.length} types=${JSON.stringify(typeSample)}`)
 
     // Sort ascending for FIFO
     const sorted = [...activities].sort(
@@ -71,14 +73,23 @@ export async function GET(req: NextRequest) {
     const trades: JournalTrade[] = []
     const brokerSet = new Set<string>()
 
+    // Normalise broker-specific activity type strings to BUY / SELL
+    function normaliseType(raw: string | undefined): 'BUY' | 'SELL' | null {
+      const t = (raw ?? '').toUpperCase().trim()
+      if (['BUY', 'B', 'BOT', 'BUY TO OPEN', 'BTO'].includes(t)) return 'BUY'
+      if (['SELL', 'S', 'SLD', 'SELL TO CLOSE', 'STC', 'SOLD'].includes(t)) return 'SELL'
+      return null
+    }
+
     for (const act of sorted) {
       const symbol = act.symbol?.symbol
       const qty    = act.units  ?? 0
       const price  = act.price  ?? 0
-      const type   = act.type?.toUpperCase()  // BUY | SELL
+      const type   = normaliseType(act.type)
       const broker = act.account?.institution_name ?? 'SnapTrade'
 
       if (!symbol || qty <= 0 || price <= 0) continue
+      if (!type) continue   // skip dividends, fees, etc.
       brokerSet.add(broker)
 
       if (type === 'BUY') {

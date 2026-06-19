@@ -117,11 +117,12 @@ function Skel({ w = 80, h = 14 }: { w?: number; h?: number }) {
 const PAGE_SIZE = 25
 
 export default function JournalPage() {
-  const [allTrades, setAllTrades]       = useState<ExtendedTrade[]>([])
+  const [allTrades, setAllTrades]         = useState<ExtendedTrade[]>([])
   const [openPositions, setOpenPositions] = useState<OpenPosition[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [sources, setSources]           = useState<string[]>([])
-  const [noBroker, setNoBroker]         = useState(false)
+  const [loading, setLoading]             = useState(true)
+  const [sources, setSources]             = useState<string[]>([])
+  const [noBroker, setNoBroker]           = useState(false)
+  const [snapWarning, setSnapWarning]     = useState<string | null>(null)
 
   // Filters — default to empty (all time) so nothing is hidden by a date gate
   const [search, setSearch]                 = useState('')
@@ -176,6 +177,15 @@ export default function JournalPage() {
       const hasAlpaca    = alpacaTrades.length > 0 || alpacaRes.broker || alpacaRes.connected
       const hasSnap      = snapRes.registered
       setNoBroker(!hasAlpaca && !hasSnap)
+
+      // Surface SnapTrade errors so the user knows to act
+      if (snapRes.staleSecret) {
+        setSnapWarning('stale')
+      } else if (snapRes.error && !snapRes.registered) {
+        setSnapWarning(snapRes.error as string)
+      } else {
+        setSnapWarning(null)
+      }
 
       setLoading(false)
     }
@@ -323,6 +333,34 @@ export default function JournalPage() {
           <input type="date" value={toDate}   onChange={e => { setToDate(e.target.value);   setPage(1) }} className="input" style={{ fontSize: 12, padding: '6px 10px' }} />
         </div>
       </div>
+
+      {/* SnapTrade warning banner */}
+      {!loading && snapWarning && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+          padding: '12px 16px', borderRadius: 10,
+          background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)',
+        }}>
+          <div className="flex items-center gap-3">
+            <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, color: '#FCD34D', flexShrink: 0 }}>
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+            <span style={{ fontSize: 13, color: '#FCD34D', fontWeight: 600 }}>
+              {snapWarning === 'stale'
+                ? 'Your SnapTrade/Fidelity connection needs to be refreshed — credentials were encrypted with an old key.'
+                : `SnapTrade error: ${snapWarning}`}
+            </span>
+          </div>
+          <a href="/dashboard/settings?tab=brokers" style={{
+            fontSize: 12, fontWeight: 600, padding: '5px 14px', borderRadius: 7,
+            background: 'rgba(251,191,36,0.15)', color: '#FCD34D',
+            border: '1px solid rgba(251,191,36,0.35)', textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }}>
+            Reconnect in Settings →
+          </a>
+        </div>
+      )}
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
