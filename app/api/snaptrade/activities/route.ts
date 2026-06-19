@@ -36,8 +36,17 @@ export async function GET(req: NextRequest) {
   let userSecret: string
   try {
     userSecret = decrypt(user.snaptrade_user_secret)
-  } catch {
-    return NextResponse.json({ error: 'Failed to decrypt credentials' }, { status: 500 })
+  } catch (e) {
+    console.error('[snaptrade/activities] Failed to decrypt user secret — secret likely encrypted with old key. User must re-register SnapTrade:', e)
+    // Return registered:false (not 500) so the journal page degrades gracefully.
+    // The user needs to go to Settings → Brokers and click "Connect via SnapTrade"
+    // to re-register and get a freshly-encrypted secret.
+    return NextResponse.json({
+      trades: [],
+      registered: false,
+      staleSecret: true,
+      error: 'SnapTrade credentials need to be refreshed. Please reconnect in Settings → Brokers.',
+    })
   }
 
   const sp = req.nextUrl.searchParams
@@ -125,9 +134,13 @@ export async function GET(req: NextRequest) {
     })
   } catch (err) {
     console.error('SnapTrade activities error:', err)
-    return NextResponse.json(
-      { error: (err as Error).message ?? 'Failed to fetch activities' },
-      { status: 500 },
-    )
+    // Return 200 with registered:true so the journal page shows the "no trades" empty
+    // state instead of crashing. The error message surfaces for debugging.
+    return NextResponse.json({
+      trades: [],
+      registered: true,
+      brokers: [],
+      error: (err as Error).message ?? 'Failed to fetch activities',
+    })
   }
 }
