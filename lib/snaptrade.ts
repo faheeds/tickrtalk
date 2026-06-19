@@ -254,3 +254,20 @@ export async function getActivities(
   if (opts.types)            q.types     = opts.types
   return st('GET', '/activities', q) as Promise<SnapTradeActivity[]>
 }
+
+/**
+ * Returns activities for a single account.
+ * Endpoint: GET /accounts/{accountId}/activities
+ * Use as fallback when global GET /activities returns 410 (deprecated for some accounts).
+ */
+export async function getAccountActivities(
+  userId: string,
+  userSecret: string,
+  accountId: string,
+  opts: { startDate?: string; endDate?: string } = {},
+): Promise<SnapTradeActivity[]> {
+  const q: Record<string, string> = { userId, userSecret }
+  if (opts.startDate) q.startDate = opts.startDate
+  if (opts.endDate)   q.endDate   = opts.endDate
+  return st('GET', `/accounts/${accountId}/activities`, q) as Promise<SnapTradeActivity[]>
+}

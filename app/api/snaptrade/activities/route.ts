@@ -8,7 +8,7 @@
 import { requireUser } from '@/lib/auth'
 import { decrypt } from '@/lib/crypto'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActivities, getAccountPositions, listAccounts, type SnapTradeActivity } from '@/lib/snaptrade'
+import { getActivities, getAccountActivities, getAccountPositions, listAccounts, type SnapTradeActivity } from '@/lib/snaptrade'
 import { getVerdict } from '@/lib/halal'
 import { NextRequest, NextResponse } from 'next/server'
 import type { JournalTrade } from '@/app/api/journal/route'
@@ -71,16 +71,31 @@ export async function GET(req: NextRequest) {
     }
     const accountIds = accounts.map(a => a.id)
 
-    // 2. Fetch activities + per-account positions in parallel
-    //    Pass explicit accountIds to activities — required for some brokers (e.g. Robinhood)
-    //    when the global endpoint returns empty due to degraded status.
-    //    Use per-account positions because GET /holdings returns 410 (deprecated).
+    // 2. Fetch activities with 410 fallback, and per-account positions, fully in parallel.
+    //    Activities gets its own .catch chain so 410 / any error never kills the position fetches.
+    let activitiesError: string | null = null
+
+    const activitiesPromise: Promise<SnapTradeActivity[]> = getActivities(userId, userSecret, {
+      startDate,
+      endDate,
+      accounts: accountIds.length > 0 ? accountIds : undefined,
+    }).catch(async (err: Error) => {
+      const msg = err.message ?? ''
+      if (msg.includes('410')) {
+        // Global /activities deprecated for this account — try per-account endpoint
+        console.log('[snaptrade/activities] Global /activities → 410; falling back to per-account')
+        const settled = await Promise.allSettled(
+          accountIds.map(id => getAccountActivities(userId, userSecret, id, { startDate, endDate }))
+        )
+        return settled.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+      }
+      activitiesError = msg
+      console.error('[snaptrade/activities] activities fetch failed:', msg)
+      return [] as SnapTradeActivity[]
+    }) as Promise<SnapTradeActivity[]>
+
     const [activities, ...positionResults] = await Promise.all([
-      getActivities(userId, userSecret, {
-        startDate,
-        endDate,
-        accounts: accountIds.length > 0 ? accountIds : undefined,
-      }),
+      activitiesPromise,
       ...accounts.map(acc =>
         getAccountPositions(userId, userSecret, acc.id)
           .then(positions => ({ account: acc, positions }))
@@ -201,7 +216,8 @@ export async function GET(req: NextRequest) {
       registered: true,
       brokers: Array.from(brokerSet),
       total: trades.length,
-      ...(accountsError ? { error: `Could not load accounts: ${accountsError}` } : {}),
+      ...(accountsError    ? { error: `Could not load accounts: ${accountsError}` }    : {}),
+      ...(activitiesError  ? { activitiesError }                                        : {}),
     })
   } catch (err) {
     console.error('SnapTrade activities error:', err)
