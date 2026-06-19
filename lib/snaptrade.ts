@@ -186,15 +186,24 @@ export async function deleteAuthorization(
 // ── Holdings / Open Positions ─────────────────────────────────────────────────
 
 export interface SnapTradePosition {
+  // Actual SnapTrade shape: position.symbol.symbol.symbol = ticker string
+  // position.symbol        = the position wrapper
+  // position.symbol.symbol = the security object { id, symbol, description, ... }
+  // position.symbol.symbol.symbol = the ticker string e.g. "XRP"
   symbol: {
-    id:          string
-    symbol:      string
-    description: string
-    currency?:   { code: string }
+    id?:         string
+    description?: string
+    symbol?: {
+      id:          string
+      symbol:      string   // ← ticker string lives HERE
+      description: string
+      currency?:   { code: string }
+    }
   }
   units:                  number | null
   price:                  number | null
   open_pnl:               number | null
+  // fractional_units equals units for crypto/fractional brokers — do NOT add to units
   fractional_units:       number | null
   average_purchase_price: number | null
 }

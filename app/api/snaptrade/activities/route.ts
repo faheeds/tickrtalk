@@ -156,11 +156,13 @@ export async function GET(req: NextRequest) {
       unrealizedPct: number; halal: string; broker: string
     }[] = []
 
-    for (const result of positionResults as { account: { institution_name: string }; positions: { symbol?: { symbol?: string }; units?: number | null; fractional_units?: number | null; price?: number | null; average_purchase_price?: number | null; open_pnl?: number | null }[] }[]) {
+    for (const result of positionResults as { account: { institution_name: string }; positions: { symbol?: { symbol?: { symbol?: string } }; units?: number | null; fractional_units?: number | null; price?: number | null; average_purchase_price?: number | null; open_pnl?: number | null }[] }[]) {
       const broker = result.account?.institution_name ?? 'SnapTrade'
       for (const p of result.positions ?? []) {
-        const symbol = p.symbol?.symbol
-        const qty    = (p.units ?? 0) + (p.fractional_units ?? 0)
+        // Real SnapTrade shape: position.symbol.symbol.symbol = ticker string
+        const symbol = p.symbol?.symbol?.symbol
+        // fractional_units == units for crypto — just use units (already includes fractions)
+        const qty    = p.units ?? 0
         if (!symbol || qty <= 0) continue
 
         const currentPrice  = p.price ?? 0
