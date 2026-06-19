@@ -69,7 +69,7 @@ export async function GET() {
   const activityArray = Array.isArray(activitiesData) ? activitiesData : []
   const allTypes = [...new Set(activityArray.map((a: { type?: string }) => a.type).filter(Boolean))]
   const first10  = activityArray.slice(0, 10).map((a: {
-    id: string; trade_date: string; type: string; units: number; price: number
+    id: string; trade_date: string; type: string; units: number | null; price: number | null
     symbol?: { symbol: string }; account?: { institution_name: string }
   }) => ({
     id:           a.id,
