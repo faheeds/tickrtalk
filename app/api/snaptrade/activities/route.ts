@@ -8,7 +8,7 @@
 import { requireUser } from '@/lib/auth'
 import { decrypt } from '@/lib/crypto'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActivities, getAccountActivities, getAccountPositions, listAccounts, type SnapTradeActivity } from '@/lib/snaptrade'
+import { getActivities, getAccountActivities, getAccountOrders, getAccountPositions, listAccounts, type SnapTradeActivity } from '@/lib/snaptrade'
 import { getVerdict } from '@/lib/halal'
 import { NextRequest, NextResponse } from 'next/server'
 import type { JournalTrade } from '@/app/api/journal/route'
@@ -103,12 +103,50 @@ export async function GET(req: NextRequest) {
       ),
     ])
 
+    // 2b. If both activities endpoints returned nothing, try per-account orders as final fallback
+    let rawActivities = activities as SnapTradeActivity[]
+    if (rawActivities.length === 0 && accountIds.length > 0) {
+      console.log('[snaptrade/activities] activities empty — trying orders fallback')
+      const orderSettled = await Promise.allSettled(
+        accounts.map(acc => getAccountOrders(userId, userSecret, acc.id)
+          .then(orders => ({ account: acc, orders }))
+          .catch(() => ({ account: acc, orders: [] })))
+      )
+      for (const r of orderSettled) {
+        if (r.status !== 'fulfilled') continue
+        const { account, orders } = r.value
+        for (const o of orders) {
+          // Only include filled orders with a price and quantity
+          const isFilled = ['FILLED', 'EXECUTED', 'PARTIAL', 'COMPLETED'].includes((o.status ?? '').toUpperCase())
+          const qty   = o.filled_quantity ?? o.total_quantity ?? 0
+          const price = o.execution_price ?? 0
+          if (!isFilled || qty <= 0 || price <= 0) continue
+          rawActivities.push({
+            id:              o.brokerage_order_id,
+            trade_date:      o.time_executed ?? o.time_placed,
+            settlement_date: o.time_executed ?? o.time_placed,
+            symbol:          o.symbol,
+            currency:        { code: 'USD' },
+            account:         account,
+            type:            o.action?.toUpperCase().includes('BUY') ? 'BUY'
+                           : o.action?.toUpperCase().includes('SELL') ? 'SELL'
+                           : o.action ?? '',
+            amount:          null,
+            price,
+            units:           qty,
+            description:     o.order_type ?? '',
+          })
+        }
+      }
+      console.log(`[snaptrade/activities] orders fallback yielded ${rawActivities.length} activities`)
+    }
+
     // Log what came back so Vercel logs show real data
-    const typeSample = [...new Set((activities as SnapTradeActivity[]).map(a => a.type).filter(Boolean))].slice(0, 20)
-    console.log(`[snaptrade/activities] accounts=${accounts.length} activities=${(activities as SnapTradeActivity[]).length} types=${JSON.stringify(typeSample)}`)
+    const typeSample = [...new Set(rawActivities.map(a => a.type).filter(Boolean))].slice(0, 20)
+    console.log(`[snaptrade/activities] accounts=${accounts.length} activities=${rawActivities.length} types=${JSON.stringify(typeSample)}`)
 
     // 3. Sort ascending for FIFO lot matching
-    const sorted = [...(activities as SnapTradeActivity[])].sort(
+    const sorted = [...rawActivities].sort(
       (a, b) => new Date(a.trade_date).getTime() - new Date(b.trade_date).getTime(),
     )
 

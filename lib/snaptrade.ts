@@ -271,3 +271,34 @@ export async function getAccountActivities(
   if (opts.endDate)   q.endDate   = opts.endDate
   return st('GET', `/accounts/${accountId}/activities`, q) as Promise<SnapTradeActivity[]>
 }
+
+// ── Orders (filled order history — fallback when activities is unavailable) ───
+
+export interface SnapTradeOrder {
+  brokerage_order_id: string
+  status:             string   // 'FILLED' | 'EXECUTED' | 'CANCELLED' | 'PENDING' | …
+  action:             string   // 'BUY' | 'SELL' | 'Buy' | 'Sell'
+  order_type:         string   // 'Market' | 'Limit' | …
+  // symbol is the same 2-level object as SnapTradeActivity (activity.symbol.symbol = ticker)
+  symbol:             { id: string; symbol: string; description: string }
+  total_quantity:     number | null
+  filled_quantity:    number | null
+  execution_price:    number | null
+  limit_price:        number | null
+  time_placed:        string
+  time_executed:      string | null
+  account:            { id: string; name: string; institution_name: string }
+}
+
+/**
+ * Returns order history for a single account.
+ * Endpoint: GET /accounts/{accountId}/orders
+ * Used as a final fallback when both global and per-account /activities are unavailable.
+ */
+export async function getAccountOrders(
+  userId: string,
+  userSecret: string,
+  accountId: string,
+): Promise<SnapTradeOrder[]> {
+  return st('GET', `/accounts/${accountId}/orders`, { userId, userSecret, state: 'all' }) as Promise<SnapTradeOrder[]>
+}
