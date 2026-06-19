@@ -5,6 +5,19 @@ import type { JournalTrade } from '@/app/api/journal/route'
 
 type ExtendedTrade = JournalTrade & { broker?: string }
 
+interface OpenPosition {
+  symbol: string
+  qty: number
+  side: string
+  avgEntryPrice: number
+  currentPrice: number
+  marketValue: number
+  unrealizedPnl: number
+  unrealizedPct: number
+  halal: string
+  broker?: string
+}
+
 // ─── Cumulative P&L Sparkline ─────────────────────────────────────────────────
 function PnlSparkline({ trades }: { trades: ExtendedTrade[] }) {
   const W = 900, H = 180, PAD = 16
@@ -104,12 +117,13 @@ function Skel({ w = 80, h = 14 }: { w?: number; h?: number }) {
 const PAGE_SIZE = 25
 
 export default function JournalPage() {
-  const [allTrades, setAllTrades]   = useState<ExtendedTrade[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [sources, setSources]       = useState<string[]>([])
-  const [noBroker, setNoBroker]     = useState(false)
+  const [allTrades, setAllTrades]       = useState<ExtendedTrade[]>([])
+  const [openPositions, setOpenPositions] = useState<OpenPosition[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [sources, setSources]           = useState<string[]>([])
+  const [noBroker, setNoBroker]         = useState(false)
 
-  // Filters
+  // Filters — default to empty (all time) so nothing is hidden by a date gate
   const [search, setSearch]                 = useState('')
   const [fromDate, setFromDate]             = useState('')
   const [toDate, setToDate]                 = useState('')
@@ -122,13 +136,6 @@ export default function JournalPage() {
   const [sortKey, setSortKey] = useState<keyof ExtendedTrade>('date')
   const [sortDir, setSortDir] = useState<1 | -1>(-1)
 
-  // Default year range
-  useEffect(() => {
-    const yr = new Date().getFullYear()
-    setFromDate(`${yr}-01-01`)
-    setToDate(`${yr}-12-31`)
-  }, [])
-
   // ── Fetch from both Alpaca + SnapTrade ─────────────────────────────────────
   useEffect(() => {
     async function load() {
@@ -139,9 +146,11 @@ export default function JournalPage() {
         fetch('/api/snaptrade/activities').then(r => r.json()).catch(() => ({ trades: [], registered: false })),
       ])
 
+      const brokerLabel = alpacaRes.paper ? 'Alpaca Paper' : 'Alpaca'
+
       const alpacaTrades: ExtendedTrade[] = (alpacaRes.trades ?? []).map((t: JournalTrade) => ({
         ...t,
-        broker: alpacaRes.paper ? 'Alpaca Paper' : 'Alpaca',
+        broker: brokerLabel,
       }))
 
       const snapTrades: ExtendedTrade[] = (snapRes.trades ?? [])
@@ -155,6 +164,12 @@ export default function JournalPage() {
       setSources(Array.from(srcSet))
 
       setAllTrades(merged)
+
+      // Open positions from Alpaca
+      const alpacaPositions: OpenPosition[] = (alpacaRes.openPositions ?? []).map(
+        (p: Omit<OpenPosition, 'broker'>) => ({ ...p, broker: brokerLabel })
+      )
+      setOpenPositions(alpacaPositions)
 
       // No broker at all — alpacaRes.connected covers the case where a connection
       // exists in the DB but credentials couldn't be decrypted (wrong key).
@@ -241,6 +256,8 @@ export default function JournalPage() {
     return n >= 0 ? `+$${s}` : `–$${s}`
   }
 
+  function clearDates() { setFromDate(''); setToDate(''); setPage(1) }
+
   const yr = new Date().getFullYear()
 
   // ── No broker connected ────────────────────────────────────────────────────
@@ -285,17 +302,21 @@ export default function JournalPage() {
         {/* Year + date pickers */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            {[yr - 1, yr].map(y => (
-              <button key={y} onClick={() => setYear(y)}
-                style={{
-                  padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
-                  border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                  background: fromDate.startsWith(String(y)) ? 'rgba(99,102,241,0.2)' : 'transparent',
-                  color: fromDate.startsWith(String(y)) ? '#A5B4FC' : 'var(--ink-3)',
-                }}>
-                {y}
-              </button>
-            ))}
+            {(['All', yr - 1, yr] as (string | number)[]).map(y => {
+              const isAll = y === 'All'
+              const active = isAll ? (!fromDate && !toDate) : fromDate.startsWith(String(y))
+              return (
+                <button key={y} onClick={() => isAll ? clearDates() : setYear(y as number)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                    background: active ? 'rgba(99,102,241,0.2)' : 'transparent',
+                    color: active ? '#A5B4FC' : 'var(--ink-3)',
+                  }}>
+                  {y}
+                </button>
+              )
+            })}
           </div>
           <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }} className="input" style={{ fontSize: 12, padding: '6px 10px' }} />
           <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>to</span>
@@ -334,6 +355,61 @@ export default function JournalPage() {
         <div className="card" style={{ padding: '20px 24px' }}>
           <div className="section-label mb-3">Cumulative Realized P&L</div>
           <PnlSparkline trades={filtered} />
+        </div>
+      )}
+
+      {/* ── Open Positions ──────────────────────────────────────────────────── */}
+      {!loading && openPositions.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="flex items-center gap-3" style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink-1)' }}>Open Positions</span>
+            <span style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+              background: 'rgba(251,191,36,0.12)', color: '#FCD34D',
+              border: '1px solid rgba(251,191,36,0.25)',
+            }}>{openPositions.length}</span>
+            <span style={{ fontSize: 11, color: 'var(--ink-3)', marginLeft: 4 }}>Currently held — unrealized P&amp;L</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {['Symbol', 'Qty', 'Avg Entry', 'Current Price', 'Market Value', 'Unrealized P&L', 'P&L %', 'Halal', 'Broker'].map(h => (
+                    <th key={h} className={['Qty', 'Avg Entry', 'Current Price', 'Market Value', 'Unrealized P&L', 'P&L %'].includes(h) ? 'text-right' : ''}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {openPositions.map(p => {
+                  const isGain = p.unrealizedPnl >= 0
+                  return (
+                    <tr key={p.symbol}>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink-1)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>{p.symbol}</span>
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 99, fontWeight: 700, background: 'rgba(251,191,36,0.12)', color: '#FCD34D', border: '1px solid rgba(251,191,36,0.25)', textTransform: 'uppercase' }}>OPEN</span>
+                        </div>
+                      </td>
+                      <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{p.qty.toLocaleString()}</td>
+                      <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-3)' }}>${p.avgEntryPrice.toFixed(2)}</td>
+                      <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-1)', fontWeight: 600 }}>${p.currentPrice.toFixed(2)}</td>
+                      <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>${p.marketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="text-right">
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: isGain ? 'var(--up)' : 'var(--down)' }}>
+                          {isGain ? '+' : '–'}${Math.abs(p.unrealizedPnl).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: isGain ? 'var(--up)' : 'var(--down)' }}>
+                        {p.unrealizedPct >= 0 ? '+' : ''}{p.unrealizedPct.toFixed(2)}%
+                      </td>
+                      <td><VerdictBadge v={p.halal} /></td>
+                      <td><BrokerPill broker={p.broker} /></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -431,8 +507,8 @@ export default function JournalPage() {
                 <tr>
                   <td colSpan={11} style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
                     {allTrades.length === 0
-                      ? 'No closed trades found. Connect a broker and make some trades!'
-                      : 'No trades match the current filters.'}
+                      ? 'No closed trades yet. The journal records realized P&L when you sell — open positions appear in the section above.'
+                      : 'No trades match the current filters. Try selecting "All" to clear the date range.'}
                   </td>
                 </tr>
               ) : pageTrades.map(t => {

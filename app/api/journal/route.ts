@@ -52,10 +52,13 @@ export async function GET() {
     paper: conn.paper_mode as boolean,
   })
 
-  // Fetch fills from the past 2 years
+  // Fetch fills and open positions in parallel — go back 5 years so nothing is missed
   const after = new Date()
-  after.setFullYear(after.getFullYear() - 2)
-  const fills = await client.getActivities('FILL', after.toISOString())
+  after.setFullYear(after.getFullYear() - 5)
+  const [fills, rawPositions] = await Promise.all([
+    client.getActivities('FILL', after.toISOString()),
+    client.getPositions().catch(() => [] as Awaited<ReturnType<typeof client.getPositions>>),
+  ])
 
   // Sort ascending (oldest first) for FIFO lot tracking
   const sorted = [...fills].sort(
@@ -119,8 +122,15 @@ export async function GET() {
   // Return most recent first
   trades.reverse()
 
+  // Annotate positions with halal verdict
+  const openPositions = rawPositions.map(p => ({
+    ...p,
+    halal: getVerdict(p.symbol),
+  }))
+
   return NextResponse.json({
     trades,
+    openPositions,
     broker: 'alpaca',
     paper: conn.paper_mode,
     total: trades.length,
