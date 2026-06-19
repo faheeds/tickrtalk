@@ -234,6 +234,12 @@ export default function JournalPage() {
     return { totalPnl, winRate, best, worst, avgWin, days, wins: wins.length, losses: losses.length, total: withPnl.length }
   }, [filtered])
 
+  // ── Unrealized P&L (from open positions) ───────────────────────────────────
+  const unrealizedTotal = useMemo(
+    () => openPositions.reduce((sum, p) => sum + p.unrealizedPnl, 0),
+    [openPositions],
+  )
+
   // ── Pagination ─────────────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageTrades = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -367,7 +373,59 @@ export default function JournalPage() {
         </div>
       )}
 
-      {/* Stats cards */}
+      {/* ── P&L Summary tiles ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {loading ? (
+          [...Array(3)].map((_, i) => (
+            <div key={i} className="card" style={{ padding: '20px 24px' }}>
+              <Skel w={80} h={10} />
+              <div style={{ marginTop: 12 }}><Skel w={120} h={30} /></div>
+              <div style={{ marginTop: 8 }}><Skel w={80} h={10} /></div>
+            </div>
+          ))
+        ) : (() => {
+          const totalAll = stats.totalPnl + unrealizedTotal
+          return [
+            {
+              label: 'Realized P&L',
+              value: fmtPnl(stats.totalPnl),
+              sub: `${stats.wins}W / ${stats.losses}L · ${stats.total} closed trade${stats.total !== 1 ? 's' : ''}`,
+              color: stats.totalPnl >= 0 ? 'var(--up)' : 'var(--down)',
+              accent: false,
+            },
+            {
+              label: 'Unrealized P&L',
+              value: fmtPnl(unrealizedTotal),
+              sub: `${openPositions.length} open position${openPositions.length !== 1 ? 's' : ''} · currently held`,
+              color: unrealizedTotal >= 0 ? 'var(--up)' : 'var(--down)',
+              accent: false,
+            },
+            {
+              label: 'Total P&L',
+              value: fmtPnl(totalAll),
+              sub: 'Realized + Unrealized combined',
+              color: totalAll >= 0 ? 'var(--up)' : 'var(--down)',
+              accent: true,
+            },
+          ].map((s, i) => (
+            <div key={i} className="card" style={{
+              padding: '20px 24px',
+              ...(s.accent ? {
+                background: 'rgba(99,102,241,0.07)',
+                border: '1px solid rgba(99,102,241,0.28)',
+              } : {}),
+            }}>
+              <div className="section-label mb-2">{s.label}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: s.color, fontVariantNumeric: 'tabular-nums' }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 6 }}>{s.sub}</div>
+            </div>
+          ))
+        })()}
+      </div>
+
+      {/* ── Detailed stats cards ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         {loading
           ? [...Array(6)].map((_, i) => (
@@ -378,7 +436,7 @@ export default function JournalPage() {
               </div>
             ))
           : [
-              { label: 'Total P&L',     value: fmtPnl(stats.totalPnl), sub: `${stats.wins}W / ${stats.losses}L`,  color: stats.totalPnl >= 0 ? 'var(--up)' : 'var(--down)', featured: true },
+              { label: 'Realized P&L',  value: fmtPnl(stats.totalPnl), sub: `${stats.wins}W / ${stats.losses}L`,  color: stats.totalPnl >= 0 ? 'var(--up)' : 'var(--down)', featured: true },
               { label: 'Win Rate',      value: `${stats.winRate.toFixed(1)}%`,  sub: `${stats.total} closed`,       color: stats.winRate >= 50 ? 'var(--up)' : 'var(--down)' },
               { label: 'Best Trade',    value: stats.best  ? fmtPnl(stats.best)  : '—', sub: 'single trade',       color: 'var(--up)' },
               { label: 'Worst Trade',   value: stats.worst ? fmtPnl(stats.worst) : '—', sub: 'single trade',       color: 'var(--down)' },
