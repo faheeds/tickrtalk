@@ -183,6 +183,40 @@ export async function deleteAuthorization(
   await st('DELETE', `/authorizations/${authorizationId}`, { userId, userSecret })
 }
 
+// ── Holdings / Open Positions ─────────────────────────────────────────────────
+
+export interface SnapTradePosition {
+  symbol: {
+    id:          string
+    symbol:      string
+    description: string
+    currency?:   { code: string }
+  }
+  units:                  number | null
+  price:                  number | null
+  open_pnl:               number | null
+  fractional_units:       number | null
+  average_purchase_price: number | null
+}
+
+export interface SnapTradeAccountHolding {
+  account: { id: string; name: string; institution_name: string }
+  balances: unknown[]
+  positions: SnapTradePosition[]
+  total_value: { value: number | null; currency: string | null } | null
+}
+
+/**
+ * Returns all holdings (open positions) across every connected brokerage account.
+ * Endpoint: GET /holdings
+ */
+export async function getHoldings(
+  userId: string,
+  userSecret: string,
+): Promise<SnapTradeAccountHolding[]> {
+  return st('GET', '/holdings', { userId, userSecret }) as Promise<SnapTradeAccountHolding[]>
+}
+
 // ── Activities ────────────────────────────────────────────────────────────────
 
 export interface SnapTradeActivity {

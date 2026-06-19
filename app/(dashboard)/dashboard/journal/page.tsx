@@ -170,7 +170,11 @@ export default function JournalPage() {
       const alpacaPositions: OpenPosition[] = (alpacaRes.openPositions ?? []).map(
         (p: Omit<OpenPosition, 'broker'>) => ({ ...p, broker: brokerLabel })
       )
-      setOpenPositions(alpacaPositions)
+
+      // Open positions from SnapTrade (Fidelity, etc.)
+      const snapPositions: OpenPosition[] = (snapRes.openPositions ?? [])
+
+      setOpenPositions([...alpacaPositions, ...snapPositions])
 
       // No broker at all — alpacaRes.connected covers the case where a connection
       // exists in the DB but credentials couldn't be decrypted (wrong key).

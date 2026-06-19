@@ -8,7 +8,7 @@
 import { requireUser } from '@/lib/auth'
 import { decrypt } from '@/lib/crypto'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActivities, type SnapTradeActivity } from '@/lib/snaptrade'
+import { getActivities, getHoldings, type SnapTradeActivity } from '@/lib/snaptrade'
 import { getVerdict } from '@/lib/halal'
 import { NextRequest, NextResponse } from 'next/server'
 import type { JournalTrade } from '@/app/api/journal/route'
@@ -54,10 +54,12 @@ export async function GET(req: NextRequest) {
   const endDate   = sp.get('endDate')   ?? new Date().toISOString().slice(0, 10)
 
   try {
-    // Fetch ALL activities — no server-side type filter so we catch every broker's
-    // trade types (Fidelity may use slightly different labels than 'BUY'/'SELL').
-    // We normalise below with .toUpperCase() and also check common aliases.
-    const activities = await getActivities(userId, userSecret, { startDate, endDate })
+    // Fetch activities AND holdings in parallel — holdings give us open positions
+    // (Fidelity stocks the user currently holds), activities give us trade history.
+    const [activities, holdings] = await Promise.all([
+      getActivities(userId, userSecret, { startDate, endDate }),
+      getHoldings(userId, userSecret).catch(() => [] as Awaited<ReturnType<typeof getHoldings>>),
+    ])
 
     // Log what actually came back so we can diagnose broker-specific type strings
     const typeSample = [...new Set(activities.map(a => a.type).filter(Boolean))].slice(0, 20)
@@ -137,8 +139,46 @@ export async function GET(req: NextRequest) {
     // Newest first
     trades.reverse()
 
+    // Build open positions from SnapTrade holdings
+    const openPositions: {
+      symbol: string; qty: number; side: string; avgEntryPrice: number
+      currentPrice: number; marketValue: number; unrealizedPnl: number
+      unrealizedPct: number; halal: string; broker: string
+    }[] = []
+
+    for (const h of holdings) {
+      const broker = h.account?.institution_name ?? 'SnapTrade'
+      for (const p of h.positions ?? []) {
+        const symbol = p.symbol?.symbol
+        const qty    = (p.units ?? 0) + (p.fractional_units ?? 0)
+        if (!symbol || qty <= 0) continue
+
+        const currentPrice  = p.price ?? 0
+        const avgEntry      = p.average_purchase_price ?? 0
+        const marketValue   = qty * currentPrice
+        const unrealizedPnl = p.open_pnl ?? (avgEntry > 0 ? (currentPrice - avgEntry) * qty : 0)
+        const unrealizedPct = avgEntry > 0 ? +((currentPrice - avgEntry) / avgEntry * 100).toFixed(2) : 0
+
+        openPositions.push({
+          symbol,
+          qty:          +qty.toFixed(4),
+          side:         'long',
+          avgEntryPrice: +avgEntry.toFixed(2),
+          currentPrice:  +currentPrice.toFixed(2),
+          marketValue:   +marketValue.toFixed(2),
+          unrealizedPnl: +unrealizedPnl.toFixed(2),
+          unrealizedPct,
+          halal:  getVerdict(symbol),
+          broker,
+        })
+      }
+    }
+
+    console.log(`[snaptrade/activities] trades=${trades.length} openPositions=${openPositions.length}`)
+
     return NextResponse.json({
       trades,
+      openPositions,
       registered: true,
       brokers: Array.from(brokerSet),
       total: trades.length,
