@@ -126,7 +126,7 @@ export async function GET() {
     authorizations: authsResult,
     globalEndpoints: {
       'GET /activities':                    { status: globalActivities.status,             count: Array.isArray(globalActivities.data)             ? globalActivities.data.length             : null, error: globalActivities.error },
-      'GET /activities (with accountIds)':  { status: globalActivitiesWithAccounts.status, count: Array.isArray(globalActivitiesWithAccounts.data) ? globalActivitiesWithAccounts.data.length : null, error: globalActivitiesWithAccounts.error },
+      'GET /activities (with accountIds)':  { status: globalActivitiesWithAccounts.status, count: Array.isArray(globalActivitiesWithAccounts.data) ? globalActivitiesWithAccounts.data.length : null, error: (globalActivitiesWithAccounts as { error?: string }).error },
     },
     perAccountResults,
   })
