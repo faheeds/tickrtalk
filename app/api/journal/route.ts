@@ -16,7 +16,18 @@ export interface JournalTrade {
   pnlPct: number | null
   halal: 'HALAL' | 'HARAM' | 'DOUBTFUL' | 'UNKNOWN'
   broker?: string       // 'alpaca' | broker display name from SnapTrade
+  assetClass?: 'CRYPTO' | 'STOCK'
 }
+
+// Common crypto tickers for asset-class detection
+const CRYPTO_TICKERS = new Set([
+  'BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'DOT', 'LINK',
+  'LTC', 'BCH', 'MATIC', 'POL', 'SHIB', 'UNI', 'AAVE', 'ATOM', 'FIL',
+  'ICP', 'ETC', 'XLM', 'ALGO', 'VET', 'THETA', 'TRX', 'EOS', 'ZEC',
+  'DASH', 'XMR', 'NEAR', 'FTM', 'GRT', 'LRC', 'AXS', 'SAND', 'MANA',
+  'APE', 'OP', 'ARB', 'SUI', 'SEI', 'INJ', 'TIA', 'RNDR', 'STX',
+  'RUNE', 'OSMO', 'KAVA', 'HBAR', 'FLOW', 'CRV', 'COMP', 'MKR',
+])
 
 export async function GET() {
   const userId = await requireUser().catch(() => null)
@@ -115,6 +126,7 @@ export async function GET() {
         pnl,
         pnlPct,
         halal: getVerdict(symbol),
+        assetClass: CRYPTO_TICKERS.has(symbol) ? 'CRYPTO' : 'STOCK',
       })
     }
   }

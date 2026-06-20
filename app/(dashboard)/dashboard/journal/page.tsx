@@ -16,6 +16,7 @@ interface OpenPosition {
   unrealizedPct: number
   halal: string
   broker?: string
+  assetClass?: 'CRYPTO' | 'STOCK'
 }
 
 // ─── Cumulative P&L Sparkline ─────────────────────────────────────────────────
@@ -131,6 +132,8 @@ export default function JournalPage() {
   const [outcomeFilter, setOutcomeFilter]   = useState<'all' | 'win' | 'loss'>('all')
   const [halalFilter, setHalalFilter]       = useState<'all' | 'HALAL' | 'HARAM' | 'DOUBTFUL' | 'UNKNOWN'>('all')
   const [brokerFilter, setBrokerFilter]     = useState('all')
+  const [assetClassFilter, setAssetClassFilter] = useState<'all' | 'CRYPTO' | 'STOCK'>('all')
+  const [viewMode, setViewMode]             = useState<'all' | 'realized' | 'unrealized'>('all')
 
   // Table state
   const [page, setPage]     = useState(1)
@@ -207,6 +210,7 @@ export default function JournalPage() {
       if (outcomeFilter === 'loss' && (t.pnl ?? 0) > 0)  return false
       if (halalFilter !== 'all' && t.halal !== halalFilter) return false
       if (brokerFilter !== 'all' && t.broker !== brokerFilter) return false
+      if (assetClassFilter !== 'all' && (t as ExtendedTrade & { assetClass?: string }).assetClass !== assetClassFilter) return false
       return true
     })
 
@@ -218,7 +222,16 @@ export default function JournalPage() {
     })
 
     return out
-  }, [allTrades, search, fromDate, toDate, outcomeFilter, halalFilter, brokerFilter, sortKey, sortDir])
+  }, [allTrades, search, fromDate, toDate, outcomeFilter, halalFilter, brokerFilter, assetClassFilter, sortKey, sortDir])
+
+  // ── Open positions filtered by broker + asset class ────────────────────────
+  const filteredPositions = useMemo(() => {
+    return openPositions.filter(p => {
+      if (brokerFilter !== 'all' && p.broker !== brokerFilter) return false
+      if (assetClassFilter !== 'all' && p.assetClass !== assetClassFilter) return false
+      return true
+    })
+  }, [openPositions, brokerFilter, assetClassFilter])
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -234,10 +247,10 @@ export default function JournalPage() {
     return { totalPnl, winRate, best, worst, avgWin, days, wins: wins.length, losses: losses.length, total: withPnl.length }
   }, [filtered])
 
-  // ── Unrealized P&L (from open positions) ───────────────────────────────────
+  // ── Unrealized P&L (respects broker + asset class filters) ────────────────
   const unrealizedTotal = useMemo(
-    () => openPositions.reduce((sum, p) => sum + p.unrealizedPnl, 0),
-    [openPositions],
+    () => filteredPositions.reduce((sum, p) => sum + p.unrealizedPnl, 0),
+    [filteredPositions],
   )
 
   // ── Pagination ─────────────────────────────────────────────────────────────
@@ -320,8 +333,22 @@ export default function JournalPage() {
           )}
         </div>
 
-        {/* Year + date pickers */}
+        {/* View mode + year + date pickers */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Realized / Unrealized / All toggle */}
+          <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            {([['all', 'All'], ['realized', 'Closed'], ['unrealized', 'Open']] as [typeof viewMode, string][]).map(([v, label]) => (
+              <button key={v} onClick={() => setViewMode(v)}
+                style={{
+                  padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                  border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                  background: viewMode === v ? 'rgba(99,102,241,0.2)' : 'transparent',
+                  color: viewMode === v ? '#A5B4FC' : 'var(--ink-3)',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
             {(['All', yr - 1, yr] as (string | number)[]).map(y => {
               const isAll = y === 'All'
@@ -460,7 +487,7 @@ export default function JournalPage() {
       )}
 
       {/* ── Open Positions ──────────────────────────────────────────────────── */}
-      {!loading && openPositions.length > 0 && (
+      {!loading && viewMode !== 'realized' && filteredPositions.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="flex items-center gap-3" style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink-1)' }}>Open Positions</span>
@@ -468,20 +495,20 @@ export default function JournalPage() {
               fontSize: 11, padding: '2px 8px', borderRadius: 99, fontWeight: 600,
               background: 'rgba(251,191,36,0.12)', color: '#FCD34D',
               border: '1px solid rgba(251,191,36,0.25)',
-            }}>{openPositions.length}</span>
+            }}>{filteredPositions.length}</span>
             <span style={{ fontSize: 11, color: 'var(--ink-3)', marginLeft: 4 }}>Currently held — unrealized P&amp;L</span>
           </div>
           <div className="overflow-x-auto">
             <table className="data-table">
               <thead>
                 <tr>
-                  {['Symbol', 'Qty', 'Avg Entry', 'Current Price', 'Market Value', 'Unrealized P&L', 'P&L %', 'Halal', 'Broker'].map(h => (
+                  {['Symbol', 'Type', 'Qty', 'Avg Entry', 'Current Price', 'Market Value', 'Unrealized P&L', 'P&L %', 'Halal', 'Broker'].map(h => (
                     <th key={h} className={['Qty', 'Avg Entry', 'Current Price', 'Market Value', 'Unrealized P&L', 'P&L %'].includes(h) ? 'text-right' : ''}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {openPositions.map(p => {
+                {filteredPositions.map(p => {
                   const isGain = p.unrealizedPnl >= 0
                   return (
                     <tr key={p.symbol}>
@@ -490,6 +517,17 @@ export default function JournalPage() {
                           <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink-1)', fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }}>{p.symbol}</span>
                           <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 99, fontWeight: 700, background: 'rgba(251,191,36,0.12)', color: '#FCD34D', border: '1px solid rgba(251,191,36,0.25)', textTransform: 'uppercase' }}>OPEN</span>
                         </div>
+                      </td>
+                      <td>
+                        <span style={{
+                          fontSize: 9, padding: '1px 6px', borderRadius: 99, fontWeight: 600,
+                          textTransform: 'uppercase', letterSpacing: '0.02em',
+                          background: p.assetClass === 'CRYPTO' ? 'rgba(251,146,60,0.1)' : 'rgba(96,165,250,0.1)',
+                          color: p.assetClass === 'CRYPTO' ? '#FB923C' : '#60A5FA',
+                          border: p.assetClass === 'CRYPTO' ? '1px solid rgba(251,146,60,0.25)' : '1px solid rgba(96,165,250,0.25)',
+                        }}>
+                          {p.assetClass ?? 'STOCK'}
+                        </span>
                       </td>
                       <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{p.qty.toLocaleString()}</td>
                       <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-3)' }}>${p.avgEntryPrice.toFixed(2)}</td>
@@ -514,8 +552,8 @@ export default function JournalPage() {
         </div>
       )}
 
-      {/* Trade log */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      {/* Trade log — hidden when viewing open positions only */}
+      {viewMode !== 'unrealized' && <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {/* Toolbar */}
         <div className="flex items-center justify-between flex-wrap gap-3" style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="flex items-center gap-2">
@@ -536,6 +574,11 @@ export default function JournalPage() {
               className="input"
               style={{ fontSize: 12, padding: '6px 10px', width: 130 }}
             />
+            <select value={assetClassFilter} onChange={e => { setAssetClassFilter(e.target.value as 'all'|'CRYPTO'|'STOCK'); setPage(1) }} className="select" style={{ fontSize: 12 }}>
+              <option value="all">All Assets</option>
+              <option value="CRYPTO">Crypto</option>
+              <option value="STOCK">Stocks</option>
+            </select>
             <select value={outcomeFilter} onChange={e => { setOutcomeFilter(e.target.value as 'all'|'win'|'loss'); setPage(1) }} className="select" style={{ fontSize: 12 }}>
               <option value="all">All Trades</option>
               <option value="win">Wins</option>
@@ -692,7 +735,7 @@ export default function JournalPage() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

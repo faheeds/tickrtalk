@@ -229,10 +229,14 @@ export interface SnapTradeActivity {
   settlement_date: string
   symbol: { id: string; symbol: string; description: string }
   currency: { code: string }
-  account: { id: string; name: string; institution_name: string }
+  // account is present in global /activities; absent in per-account /accounts/{id}/activities
+  account?:     { id: string; name: string; institution_name: string }
+  // institution is present in per-account /accounts/{id}/activities (top-level, not nested)
+  institution?: string
   type:        string   // BUY | SELL | DIVIDEND | FEE | …
   amount:      number | null
   price:       number | null
+  // NOTE: SELL units are returned as NEGATIVE values by the per-account endpoint
   units:       number | null
   description: string
 }
@@ -269,7 +273,13 @@ export async function getAccountActivities(
   const q: Record<string, string> = { userId, userSecret }
   if (opts.startDate) q.startDate = opts.startDate
   if (opts.endDate)   q.endDate   = opts.endDate
-  return st('GET', `/accounts/${accountId}/activities`, q) as Promise<SnapTradeActivity[]>
+  const res = await st('GET', `/accounts/${accountId}/activities`, q)
+  // The per-account endpoint returns { data: SnapTradeActivity[] } NOT a bare array
+  if (res && typeof res === 'object' && !Array.isArray(res) &&
+      Array.isArray((res as { data?: unknown }).data)) {
+    return (res as { data: SnapTradeActivity[] }).data
+  }
+  return Array.isArray(res) ? (res as SnapTradeActivity[]) : []
 }
 
 // ── Orders (filled order history — fallback when activities is unavailable) ───

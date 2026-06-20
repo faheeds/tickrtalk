@@ -13,6 +13,16 @@ import { getVerdict } from '@/lib/halal'
 import { NextRequest, NextResponse } from 'next/server'
 import type { JournalTrade } from '@/app/api/journal/route'
 
+// Common crypto tickers — used as fallback when account name doesn't contain "crypto"
+const CRYPTO_TICKERS = new Set([
+  'BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'ADA', 'AVAX', 'DOT', 'LINK',
+  'LTC', 'BCH', 'MATIC', 'POL', 'SHIB', 'UNI', 'AAVE', 'ATOM', 'FIL',
+  'ICP', 'ETC', 'XLM', 'ALGO', 'VET', 'THETA', 'TRX', 'EOS', 'ZEC',
+  'DASH', 'XMR', 'NEAR', 'FTM', 'GRT', 'LRC', 'AXS', 'SAND', 'MANA',
+  'APE', 'OP', 'ARB', 'SUI', 'SEI', 'INJ', 'TIA', 'RNDR', 'STX',
+  'RUNE', 'OSMO', 'KAVA', 'HBAR', 'FLOW', 'CRV', 'COMP', 'MKR',
+])
+
 function fiveYearsAgo(): string {
   const d = new Date()
   d.setFullYear(d.getFullYear() - 5)
@@ -85,7 +95,14 @@ export async function GET(req: NextRequest) {
         // Global /activities deprecated for this account — try per-account endpoint
         console.log('[snaptrade/activities] Global /activities → 410; falling back to per-account')
         const settled = await Promise.allSettled(
-          accountIds.map(id => getAccountActivities(userId, userSecret, id, { startDate, endDate }))
+          accounts.map(acc =>
+            getAccountActivities(userId, userSecret, acc.id, { startDate, endDate })
+              .then(acts => acts.map(a => ({
+                ...a,
+                // Carry full account name (e.g. "Robinhood Crypto") so we can detect crypto later
+                institution: a.institution ?? acc.name,
+              })))
+          )
         )
         return settled.flatMap(r => r.status === 'fulfilled' ? r.value : [])
       }
@@ -156,10 +173,16 @@ export async function GET(req: NextRequest) {
 
     for (const act of sorted) {
       const symbol = act.symbol?.symbol
-      const qty    = act.units  ?? 0
+      // Per-account /activities returns negative units for SELL — take absolute value
+      const qty    = Math.abs(act.units ?? 0)
       const price  = act.price  ?? 0
       const type   = normaliseType(act.type)
-      const broker = act.account?.institution_name ?? 'SnapTrade'
+      // Per-account endpoint has institution at top level; global endpoint nests it under account
+      const broker = act.institution ?? act.account?.institution_name ?? 'SnapTrade'
+      // Detect crypto: account name contains "crypto" OR symbol is a known crypto ticker
+      const assetClass: 'CRYPTO' | 'STOCK' =
+        act.institution?.toLowerCase().includes('crypto') || CRYPTO_TICKERS.has(symbol ?? '')
+          ? 'CRYPTO' : 'STOCK'
 
       if (!symbol || qty <= 0 || price <= 0) continue
       if (!type) continue   // skip dividends, fees, etc.
@@ -192,17 +215,18 @@ export async function GET(req: NextRequest) {
             : null
 
         trades.push({
-          id:     act.id,
-          date:   act.trade_date.slice(0, 10),
+          id:         act.id,
+          date:       act.trade_date.slice(0, 10),
           symbol,
-          side:   'LONG',
-          qty:    +closedQty.toFixed(4),
-          entry:  avgEntry,
-          exit:   +price.toFixed(4),
+          side:       'LONG',
+          qty:        +closedQty.toFixed(4),
+          entry:      avgEntry,
+          exit:       +price.toFixed(4),
           pnl,
           pnlPct,
-          halal:  getVerdict(symbol),
+          halal:      getVerdict(symbol),
           broker,
+          assetClass,
         } as JournalTrade & { broker: string })
       }
     }
@@ -214,10 +238,13 @@ export async function GET(req: NextRequest) {
       symbol: string; qty: number; side: string; avgEntryPrice: number
       currentPrice: number; marketValue: number; unrealizedPnl: number
       unrealizedPct: number; halal: string; broker: string
+      assetClass: 'CRYPTO' | 'STOCK'
     }[] = []
 
-    for (const result of positionResults as { account: { institution_name: string }; positions: { symbol?: { symbol?: { symbol?: string } }; units?: number | null; fractional_units?: number | null; price?: number | null; average_purchase_price?: number | null; open_pnl?: number | null }[] }[]) {
+    for (const result of positionResults as { account: { name?: string; institution_name: string }; positions: { symbol?: { symbol?: { symbol?: string } }; units?: number | null; fractional_units?: number | null; price?: number | null; average_purchase_price?: number | null; open_pnl?: number | null }[] }[]) {
       const broker = result.account?.institution_name ?? 'SnapTrade'
+      // Detect crypto accounts (e.g. "Robinhood Crypto Individual")
+      const isCryptoAccount = result.account?.name?.toLowerCase().includes('crypto') ?? false
       for (const p of result.positions ?? []) {
         // Real SnapTrade shape: position.symbol.symbol.symbol = ticker string
         const symbol = p.symbol?.symbol?.symbol
@@ -242,6 +269,7 @@ export async function GET(req: NextRequest) {
           unrealizedPct,
           halal:  getVerdict(symbol),
           broker,
+          assetClass: isCryptoAccount || CRYPTO_TICKERS.has(symbol) ? 'CRYPTO' : 'STOCK',
         })
       }
     }
