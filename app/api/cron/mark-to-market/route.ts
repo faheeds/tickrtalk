@@ -73,5 +73,3 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ ok: true, processed, timestamp: new Date().toISOString() })
 }
-NextResponse.json({ ok: true, processed, timestamp: new Date().toISOString() })
-}

@@ -329,27 +329,3 @@ export default function AlgoPage() {
     </div>
   )
 }
-  </div>
-
-      {/* ── Paper trading notice ────────────────────────────────────────── */}
-      <div className="card" style={{ padding: '16px 20px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.18)' }}>
-        <div className="flex gap-3">
-          <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#FCD34D', marginBottom: 4 }}>
-              Start with a Paper Account
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.65 }}>
-              Connect an Alpaca <strong>paper trading</strong> account in{' '}
-              <Link href="/dashboard/settings" style={{ color: '#A5B4FC' }}>Settings → Brokers</Link>{' '}
-              to test all three strategies with virtual money before going live.
-              The algo will never exceed your per-strategy budget cap.
-              Past signal performance does not guarantee future results.
-            </p>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  )
-}
