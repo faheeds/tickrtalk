@@ -12,13 +12,14 @@ interface Quote {
 }
 
 export default function WatchlistPage() {
-  const [symbols, setSymbols] = useState<string[]>([])
-  const [quotes, setQuotes]   = useState<Record<string, Quote>>({})
-  const [input, setInput]     = useState('')
-  const [loading, setLoading] = useState(true)
-  const [adding, setAdding]   = useState(false)
+  const [symbols,  setSymbols]  = useState<string[]>([])
+  const [quotes,   setQuotes]   = useState<Record<string, Quote>>({})
+  const [input,    setInput]    = useState('')
+  const [loading,  setLoading]  = useState(true)
+  const [adding,   setAdding]   = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
-  const [msg, setMsg]         = useState('')
+  const [msg,      setMsg]      = useState('')
+  const [source,   setSource]   = useState<'alpaca' | 'yahoo' | 'none' | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   async function loadWatchlist() {
@@ -27,6 +28,7 @@ export default function WatchlistPage() {
     const d = await r.json()
     setSymbols(d.symbols ?? [])
     setQuotes(d.quotes ?? {})
+    setSource(d.source ?? null)
     setLoading(false)
   }
 
@@ -58,11 +60,6 @@ export default function WatchlistPage() {
     loadWatchlist()
   }
 
-  const totalValue = symbols.reduce((s, sym) => {
-    const q = quotes[sym]
-    return s + (q?.price ?? 0)
-  }, 0)
-
   return (
     <div className="space-y-6 max-w-[900px] animate-slide-up">
 
@@ -73,8 +70,21 @@ export default function WatchlistPage() {
           <h1 className="text-2xl font-bold" style={{ color: 'var(--ink-1)', letterSpacing: '-0.02em' }}>Watchlist</h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="live-dot" />
-          <span style={{ fontSize: 12, color: 'var(--up)', fontWeight: 600 }}>Prices live</span>
+          {source === 'alpaca' && (
+            <>
+              <span className="live-dot" />
+              <span style={{ fontSize: 12, color: 'var(--up)', fontWeight: 600 }}>Live · Alpaca</span>
+            </>
+          )}
+          {source === 'yahoo' && (
+            <>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+              <span style={{ fontSize: 12, color: '#F59E0B', fontWeight: 600 }}>~15 min delay · Yahoo Finance</span>
+            </>
+          )}
+          {!source && !loading && (
+            <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Prices unavailable</span>
+          )}
         </div>
       </div>
 
@@ -113,21 +123,18 @@ export default function WatchlistPage() {
         </div>
         {msg && (
           <div className="flex items-center gap-2 mt-3" style={{ color: 'var(--down)', fontSize: 12 }}>
-            <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0">
-              <path fillRule="evenodd" d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM0 8a8 8 0 1116 0A8 8 0 010 8zm8-3a1 1 0 01.894.553l2 4a1 1 0 01-1.788.894L8 8.236l-1.106 2.21a1 1 0 01-1.788-.894l2-4A1 1 0 018 5z" clipRule="evenodd"/>
-            </svg>
             {msg}
           </div>
         )}
       </div>
 
-      {/* Loading */}
+      {/* Loading skeleton */}
       {loading && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="skeleton rounded w-32 h-4" />
           </div>
-          {[...Array(4)].map((_, i) => (
+          {[...Array(3)].map((_, i) => (
             <div key={i} className="flex items-center gap-6 px-6 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
               <div className="skeleton rounded w-16 h-5" />
               <div className="skeleton rounded w-20 h-4 ml-auto" />
@@ -159,11 +166,7 @@ export default function WatchlistPage() {
           <div className="flex items-center justify-between" style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="flex items-center gap-3">
               <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink-1)' }}>Tracked Symbols</span>
-              <span style={{
-                fontSize: 11, padding: '2px 8px', borderRadius: 99,
-                background: 'rgba(56,189,248,0.12)', color: '#38BDF8',
-                border: '1px solid rgba(56,189,248,0.25)', fontWeight: 600,
-              }}>
+              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(56,189,248,0.12)', color: '#38BDF8', border: '1px solid rgba(56,189,248,0.25)', fontWeight: 600 }}>
                 {symbols.length}
               </span>
             </div>
@@ -190,9 +193,9 @@ export default function WatchlistPage() {
             </thead>
             <tbody>
               {symbols.map(sym => {
-                const q = quotes[sym]
-                const up = (q?.changesPct ?? 0) >= 0
-                const hasData = q?.price != null
+                const q   = quotes[sym]
+                const up  = (q?.changesPct ?? 0) >= 0
+                const hasPrice = q?.price != null
 
                 return (
                   <tr key={sym}>
@@ -202,29 +205,21 @@ export default function WatchlistPage() {
                       </span>
                     </td>
                     <td className="text-right">
-                      {hasData ? (
+                      {hasPrice ? (
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--ink-1)' }}>
-                          ${q.price!.toFixed(2)}
+                          ${q!.price!.toFixed(2)}
                         </span>
                       ) : (
-                        <span className="skeleton rounded inline-block" style={{ width: 64, height: 14 }} />
+                        <span style={{ color: 'var(--ink-3)' }}>&mdash;</span>
                       )}
                     </td>
                     <td className="text-right">
                       {q?.changesPct != null ? (
-                        <span
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                            fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600,
-                            color: up ? 'var(--up)' : 'var(--down)',
-                            background: up ? 'var(--up-dim)' : 'var(--down-dim)',
-                            padding: '3px 10px', borderRadius: 99,
-                          }}
-                        >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: up ? 'var(--up)' : 'var(--down)', background: up ? 'var(--up-dim)' : 'var(--down-dim)', padding: '3px 10px', borderRadius: 99 }}>
                           {up ? '▲' : '▼'} {Math.abs(q.changesPct).toFixed(2)}%
                         </span>
                       ) : (
-                        <span style={{ color: 'var(--ink-3)' }}>—</span>
+                        <span style={{ color: 'var(--ink-3)' }}>&mdash;</span>
                       )}
                     </td>
                     <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>
@@ -235,7 +230,9 @@ export default function WatchlistPage() {
                     </td>
                     <td className="text-right" style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-3)' }}>
                       {q?.volume != null
-                        ? q.volume >= 1_000_000 ? `${(q.volume / 1_000_000).toFixed(1)}M` : `${(q.volume / 1000).toFixed(0)}K`
+                        ? q.volume >= 1_000_000
+                          ? `${(q.volume / 1_000_000).toFixed(1)}M`
+                          : `${(q.volume / 1000).toFixed(0)}K`
                         : '—'}
                     </td>
                     <td>
@@ -243,9 +240,7 @@ export default function WatchlistPage() {
                         onClick={() => removeSymbol(sym)}
                         disabled={removing === sym}
                         className="btn-ghost"
-                        style={{ padding: '5px 12px', fontSize: 12, color: removing === sym ? 'var(--ink-3)' : undefined }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--down)'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--ink-3)'}
+                        style={{ padding: '5px 12px', fontSize: 12 }}
                       >
                         {removing === sym ? '…' : 'Remove'}
                       </button>
@@ -257,6 +252,7 @@ export default function WatchlistPage() {
           </table>
         </div>
       )}
+
     </div>
   )
 }
