@@ -108,3 +108,6 @@ export function getVerdictMap() { return VERDICTS }
 export function getStats() {
   return { total: Object.keys(VERDICTS).length, halal: HALAL_SET.size, haram: HARAM_SET.size, doubtful: DOUBTFUL_SET.size }
 }
+
+// Flat array of halal-certified symbols — used by algo strategy modules for universe scanning
+export const HALAL_SYMBOLS: string[] = [...HALAL_SET]
